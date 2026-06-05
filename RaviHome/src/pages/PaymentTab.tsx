@@ -18,16 +18,20 @@ import {
   IonToolbar,
   IonSearchbar,
   IonSpinner,
+  IonSelect,
+  IonSelectOption,
   useIonAlert,
   useIonToast,
 } from '@ionic/react';
-import { addOutline, cameraOutline, checkmarkCircleOutline, closeOutline, createOutline, eyeOutline, micOutline, trashOutline, cloudUploadOutline } from 'ionicons/icons';
+import { addOutline, cameraOutline, checkmarkCircleOutline, closeOutline, createOutline, eyeOutline, micOutline, trashOutline, cloudUploadOutline, sparklesOutline } from 'ionicons/icons';
 import { useForm } from 'react-hook-form';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import Tesseract from 'tesseract.js';
 import ExportMenu from '../components/ExportMenu';
 import { useAppStore, Expense } from '../store/useAppStore';
+import { useNotificationStore } from '../store/useNotificationStore';
 import { listenForVoiceInput } from '../utils/voiceInput';
+import { parseAICommand } from '../utils/aiCommandParser';
 
 type ExpenseForm = Omit<Expense, 'id' | 'type'>;
 
@@ -36,14 +40,19 @@ const emptyExpense: ExpenseForm = {
   amount: 0,
   date: '',
   description: '',
+  paymentMode: '',
+  paidBank: 'Punjab National Bank',
 };
 
 const PaymentTab: React.FC = () => {
   const [type, setType] = useState<'CREDIT' | 'DEBIT'>('DEBIT');
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [showFormAI, setShowFormAI] = useState(false);
+  const [formAIPrompt, setFormAIPrompt] = useState('');
   const { register, handleSubmit, reset, setValue } = useForm<ExpenseForm>({ defaultValues: emptyExpense });
   const expenses = useAppStore((state) => state.expenses);
   const addExpense = useAppStore((state) => state.addExpense);
@@ -51,6 +60,25 @@ const PaymentTab: React.FC = () => {
   const deleteExpense = useAppStore((state) => state.deleteExpense);
   const [presentToast] = useIonToast();
   const [presentAlert] = useIonAlert();
+  const showNotification = useNotificationStore(state => state.showNotification);
+  const triggerAnimation = useNotificationStore(state => state.triggerAnimation);
+
+  const handleFormAIFill = async () => {
+    if (!formAIPrompt.trim()) return;
+    const result = await parseAICommand(formAIPrompt);
+    if (result.success && result.data) {
+      const data = result.data;
+      if (data.category) setValue('category', data.category);
+      if (data.amount) setValue('amount', data.amount);
+      if (data.description) setValue('description', data.description);
+      if (data.paymentMode) setValue('paymentMode', data.paymentMode);
+      showNotification('success', 'Form Auto-Filled', 'AI has populated the payment details.');
+      setFormAIPrompt('');
+      setShowFormAI(false);
+    } else {
+      showNotification('validation', 'AI Auto-Fill Check', 'Could not parse payment transaction properties.');
+    }
+  };
 
   // Data Grid States
   const [searchTerm, setSearchTerm] = useState('');
@@ -94,6 +122,8 @@ const PaymentTab: React.FC = () => {
       amount: expense.amount,
       date: expense.date,
       description: expense.description,
+      paymentMode: expense.paymentMode || '',
+      paidBank: expense.paidBank || '',
     });
     setIsFormOpen(true);
   };
@@ -137,7 +167,7 @@ const PaymentTab: React.FC = () => {
         const result = await Tesseract.recognize(image.webPath, 'eng');
         applyReceiptText(result.data.text);
         setIsScanning(false);
-        presentToast({ message: 'Bill details detected.', duration: 2000, color: 'tertiary', position: 'top' });
+        showNotification('info', 'Scanner Active', 'Bill details detected.');
       }
     } catch (e) {
       setIsScanning(false);
@@ -152,30 +182,28 @@ const PaymentTab: React.FC = () => {
     const result = await Tesseract.recognize(file, 'eng');
     applyReceiptText(result.data.text);
     setIsScanning(false);
-    presentToast({ message: 'Uploaded bill converted to entry fields.', duration: 2200, color: 'tertiary', position: 'top' });
+    showNotification('info', 'Bill OCR Scanner', 'Uploaded bill parsed and details auto-populated.');
   };
 
   const onSubmit = (data: ExpenseForm) => {
     if (editingExpense) {
       updateExpense(editingExpense.id, { ...data, type });
-      presentToast({ message: 'Entry updated successfully.', duration: 2000, color: 'success', position: 'top' });
+      showNotification('success', 'Entry Updated', 'Financial record updated successfully.');
     } else {
       addExpense({ ...data, type });
-      presentToast({ message: `${type === 'CREDIT' ? 'Income' : 'Expense'} recorded successfully.`, duration: 2000, color: 'success', position: 'top' });
+      triggerAnimation(type === 'CREDIT' ? 'PAYMENT_CREDIT' : 'PAYMENT_DEBIT');
+      showNotification('success', `${type === 'CREDIT' ? 'Income' : 'Expense'} Logged`, `${data.category}: Rs. ${data.amount} recorded.`);
     }
+
     closeForm();
   };
 
   const onError = () => {
-    presentToast({ message: 'Please complete all required fields properly.', duration: 2500, color: 'danger', position: 'top' });
+    showNotification('validation', 'Validation check', 'Please complete all required payment fields.');
   };
 
   const viewExpense = (expense: Expense) => {
-    presentAlert({
-      header: expense.category,
-      message: `Type: ${expense.type}\nDate: ${expense.date}\nAmount: Rs. ${expense.amount}\nDescription: ${expense.description || 'N/A'}`,
-      buttons: ['OK'],
-    });
+    setViewingExpense(expense);
   };
 
   const confirmDelete = (expense: Expense) => {
@@ -218,21 +246,21 @@ const PaymentTab: React.FC = () => {
           />
 
           <div className="overflow-x-auto bg-white rounded-lg shadow border border-gray-100">
-            <table className="w-full text-left border-collapse whitespace-nowrap">
-              <thead className="bg-gray-100 border-b border-gray-200">
+            <table className="data-grid-table w-full text-left border-collapse whitespace-nowrap">
+              <thead className="bg-blue-500 text-white border-b-2 border-blue-600">
                 <tr>
-                  <th className="p-3 font-semibold text-gray-700 text-sm">S.No</th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm cursor-pointer hover:bg-gray-200 transition-colors" onClick={() => requestSort('category')}>
+                  <th className="p-3 font-semibold text-sm border border-blue-600">S.No</th>
+                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('category')}>
                     Category {sortConfig?.key === 'category' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm cursor-pointer hover:bg-gray-200 transition-colors" onClick={() => requestSort('date')}>
+                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('date')}>
                     Date {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm">Description</th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm cursor-pointer hover:bg-gray-200 transition-colors" onClick={() => requestSort('amount')}>
+                  <th className="p-3 font-semibold text-sm border border-blue-600">Description</th>
+                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('amount')}>
                     Amount {sortConfig?.key === 'amount' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm text-center">Actions</th>
+                  <th className="p-3 font-semibold text-sm text-center border border-blue-600">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -281,10 +309,27 @@ const PaymentTab: React.FC = () => {
 
         <IonModal isOpen={isFormOpen} onDidDismiss={closeForm} className="entry-form-modal">
           <IonHeader className="ion-no-border">
-            <IonToolbar>
+            <IonToolbar className="bg-slate-50">
               <IonTitle>{editingExpense ? 'Edit Entry' : 'Add Entry'}</IonTitle>
+              <IonButton slot="end" fill="clear" onClick={() => setShowFormAI(!showFormAI)} title="AI Auto-Fill">
+                <IonIcon icon={sparklesOutline} slot="icon-only" className="animate-pulse text-indigo-600" />
+              </IonButton>
               <IonButton slot="end" fill="clear" onClick={closeForm}><IonIcon icon={closeOutline} slot="icon-only" /></IonButton>
             </IonToolbar>
+            {showFormAI && (
+              <div className="p-3 bg-indigo-50/70 border-b border-indigo-100 flex gap-2 items-center">
+                <IonInput 
+                  placeholder="Say: spent 350 for dinner on UPI today..." 
+                  value={formAIPrompt}
+                  onIonInput={(e) => setFormAIPrompt(e.detail.value!)}
+                  className="bg-white border border-indigo-200 rounded-xl px-3 text-xs focus-within:border-indigo-500 w-full"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleFormAIFill(); }}
+                />
+                <IonButton size="small" className="bg-indigo-600 rounded-xl text-white shadow-sm flex-shrink-0" onClick={handleFormAIFill}>
+                  Auto-Fill
+                </IonButton>
+              </div>
+            )}
           </IonHeader>
           <IonContent className="ion-padding ticket-modal-content">
             <form onSubmit={handleSubmit(onSubmit, onError)} className="entry-form modal-form-panel">
@@ -306,8 +351,15 @@ const PaymentTab: React.FC = () => {
                 </IonButton>
               </IonInput>
               <IonInput fill="outline" label="Description" labelPlacement="floating" {...register('description')} />
-              <IonInput fill="outline" label="Amount" labelPlacement="floating" type="number" {...register('amount', { required: true, valueAsNumber: true })} />
+              <IonInput fill="outline" label="Amount" labelPlacement="floating" type="number" step="0.01" {...register('amount', { required: true, valueAsNumber: true })} />
               <IonInput fill="outline" label="Date" labelPlacement="floating" type="date" {...register('date', { required: true })} />
+              <IonSelect fill="outline" label="Payment Mode" labelPlacement="floating" {...register('paymentMode')}>
+                <IonSelectOption value="Cash">Cash</IonSelectOption>
+                <IonSelectOption value="UPI">UPI</IonSelectOption>
+                <IonSelectOption value="Card">Card</IonSelectOption>
+                <IonSelectOption value="Net Banking">Net Banking</IonSelectOption>
+              </IonSelect>
+              <IonInput fill="outline" label="Paid Bank" labelPlacement="floating" {...register('paidBank')} />
               <div className="form-actions">
                 <IonButton fill="outline" type="button" onClick={closeForm}>Cancel</IonButton>
                 <IonButton type="submit"><IonIcon icon={checkmarkCircleOutline} slot="start" />Submit</IonButton>
@@ -315,6 +367,50 @@ const PaymentTab: React.FC = () => {
             </form>
           </IonContent>
         </IonModal>
+
+        {/* View Expense Bottom Sheet Modal */}
+        <IonModal isOpen={!!viewingExpense} onDidDismiss={() => setViewingExpense(null)} breakpoints={[0, 0.65, 1]} initialBreakpoint={0.65}>
+          <IonContent className="ion-padding bg-slate-50">
+            {viewingExpense && (
+              <div className="p-3">
+                <div className={`p-5 rounded-t-3xl text-white flex justify-between items-center shadow-md ${viewingExpense.type === 'CREDIT' ? 'bg-gradient-to-r from-emerald-500 to-green-600' : 'bg-gradient-to-r from-rose-500 to-red-600'}`}>
+                  <div>
+                    <h2 className="text-xl font-black uppercase tracking-wider">{viewingExpense.category}</h2>
+                    <span className="text-[10px] text-white/80 font-bold uppercase tracking-widest">{viewingExpense.type} ENTRY</span>
+                  </div>
+                  <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wide bg-white/20 border border-white/30 text-white">
+                    {viewingExpense.paymentMode || 'N/A'}
+                  </span>
+                </div>
+
+                <div className="bg-white p-5 rounded-b-3xl border-x border-b border-slate-200/50 space-y-4 shadow-sm relative">
+                  <div className="flex justify-between border-b pb-3 items-center">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Transaction Amount</span>
+                    <span className={`font-black text-2xl ${viewingExpense.type === 'CREDIT' ? 'text-green-600' : 'text-red-600'}`}>
+                      Rs. {viewingExpense.amount.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 border-b pb-3">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date Logged</span>
+                      <p className="font-extrabold text-slate-800 text-sm mt-0.5">{viewingExpense.date}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Institution / Bank</span>
+                      <p className="font-extrabold text-slate-800 text-sm mt-0.5">{viewingExpense.paidBank || 'N/A'}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Description Details</span>
+                    <p className="font-semibold text-slate-700 text-xs leading-relaxed mt-1">{viewingExpense.description || 'No additional notes logged.'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </IonContent>
+        </IonModal>
+
+
       </IonContent>
     </IonPage>
   );

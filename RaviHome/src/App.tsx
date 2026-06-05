@@ -1,39 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { Redirect, Route } from 'react-router-dom';
 import {
-  IonApp, IonIcon, IonLabel, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs, setupIonicReact, useIonToast
+  IonApp, IonIcon, IonLabel, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs, setupIonicReact
 } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
-import { list, checkmarkDone, flash, train, wallet, cash, pieChart, lockClosed, settingsOutline } from 'ionicons/icons';
+import { list, checkmarkDone, flash, train, wallet, cash, pieChart, lockClosed, settingsOutline, documentTextOutline, sparklesOutline } from 'ionicons/icons';
 import { NativeBiometric } from 'capacitor-native-biometric';
 import { Capacitor } from '@capacitor/core';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import EBReadingTab from './pages/EBReadingTab';
 import PlannedWorksTab from './pages/PlannedWorksTab';
 import CompletedWorksTab from './pages/CompletedWorksTab';
+import AuditLogsTab from './pages/AuditLogsTab';
 import TravelTicketsTab from './pages/TravelTicketsTab';
 import PaymentTab from './pages/PaymentTab';
 import DepositsTab from './pages/DepositsTab';
 import DashboardTab from './pages/DashboardTab';
 import SettingsTab from './pages/SettingsTab';
+import { useAppStore } from './store/useAppStore';
+import { useNotificationStore } from './store/useNotificationStore';
+
+import AIPopupOverlay from './components/AIPopupOverlay';
+import AIAssistant from './components/AIAssistant';
 
 import '@ionic/react/css/core.css';
-import './theme/tailwind.css'; // Make sure you import tailwind here
+import './theme/tailwind.css';
 import './App.css';
 
 setupIonicReact();
 
 const App: React.FC = () => {
-  const [fade, setFade] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [welcomeProgress, setWelcomeProgress] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [presentToast] = useIonToast();
+  const processAutoRenewals = useAppStore(state => state.processAutoRenewals);
+  const showNotification = useNotificationStore(state => state.showNotification);
 
   const performBiometricAuth = async () => {
-    // Bypass biometric auth when running in a web browser
     if (!Capacitor.isNativePlatform()) {
       setIsAuthenticated(true);
-      presentToast({ message: 'Welcome back to Home App!', duration: 2500, color: 'primary', position: 'top' });
+      showNotification('success', 'Logged In', 'Welcome back to Home App!');
       return;
     }
 
@@ -45,159 +52,243 @@ const App: React.FC = () => {
           title: 'App Lock',
         });
         setIsAuthenticated(true);
-        presentToast({ message: 'Welcome back to Home App!', duration: 2500, color: 'primary', position: 'top' });
+        showNotification('success', 'Authenticated', 'Welcome back to Home App!');
       } else {
-        // Fallback to true if device does not support biometrics
         setIsAuthenticated(true); 
-        presentToast({ message: 'Welcome back to Home App!', duration: 2500, color: 'primary', position: 'top' });
+        showNotification('success', 'Logged In', 'Welcome back to Home App!');
       }
     } catch (error) {
       console.error("Biometric auth failed", error);
-      // Fallback if the plugin fails on an unsupported physical device
       setIsAuthenticated(true);
     }
   };
 
   useEffect(() => {
-    performBiometricAuth();
+    // Simulated startup progress bar
+    const interval = setInterval(() => {
+      setWelcomeProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setTimeout(() => {
+            setShowWelcome(false);
+            performBiometricAuth();
+          }, 4000); // Let them enjoy the beautiful splash screen a bit longer!
+          return 100;
+        }
+        return prev + 4;
+      });
+    }, 80);
 
-    // Start fade out after 2 seconds
-    const fadeTimer = setTimeout(() => setFade(true), 2000);
-    // completely remove from DOM after 2.5 seconds to allow interactions
-    const removeTimer = setTimeout(() => setShowWelcome(false), 2500);
-    
-    return () => { clearTimeout(fadeTimer); clearTimeout(removeTimer); };
+    processAutoRenewals();
+
+    return () => clearInterval(interval);
   }, []);
 
   return (
-  <IonApp>
-    <style>{`
-      /* Custom Bottom Navigation Bar Styling */
-      ion-tab-bar.app-sidebar-tabs {
-        --background: #ffffff;
-        --border: none;
-        box-shadow: 0 -4px 14px -3px rgba(0, 0, 0, 0.05);
-      }
-      
-      ion-tab-button {
-        --color: #9ca3af; /* Tailwind gray-400 */
-        --color-selected: #2563eb; /* Tailwind blue-600 */
-        transition: all 0.3s ease;
-        position: relative;
-      }
-      
-      /* Active Tab Indicator Line */
-      ion-tab-button.tab-selected::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 35%;
-        height: 3px;
-        background-color: #2563eb;
-        border-bottom-left-radius: 4px;
-        border-bottom-right-radius: 4px;
-      }
-      
-      /* Active Tab Icon & Label Pop */
-      ion-tab-button.tab-selected ion-icon {
-        transform: translateY(-2px) scale(1.15);
-      }
-      
-      ion-tab-button.tab-selected ion-label {
-        font-weight: 700;
-      }
-    `}</style>
+    <IonApp>
+      <style>{`
+        ion-tab-bar.app-sidebar-tabs {
+          --background: #ffffff;
+          --border: none;
+          box-shadow: 0 -4px 14px -3px rgba(0, 0, 0, 0.05);
+        }
+        
+        ion-tab-button {
+          --color: #9ca3af;
+          --color-selected: #2563eb;
+          transition: all 0.3s ease;
+          position: relative;
+        }
+        
+        ion-tab-button.tab-selected::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 35%;
+          height: 3px;
+          background-color: #2563eb;
+          border-bottom-left-radius: 4px;
+          border-bottom-right-radius: 4px;
+        }
+        
+        ion-tab-button.tab-selected ion-icon {
+          transform: translateY(-2px) scale(1.15);
+        }
+        
+        ion-tab-button.tab-selected ion-label {
+          font-weight: 700;
+        }
+      `}</style>
 
-    {showWelcome && (
-      <div className={`fixed inset-0 z-50 flex items-center justify-center bg-blue-600 transition-opacity duration-500 ease-in-out ${fade ? 'opacity-0' : 'opacity-100'}`}>
-        <div className="text-center animate-bounce">
-          <h1 className="text-5xl font-extrabold text-white mb-4 drop-shadow-lg">Home App</h1>
-          <p className="text-xl text-blue-100 font-medium tracking-wide">Your Premium Manager</p>
+      {/* Dynamic Overlay Components */}
+      <AIPopupOverlay />
+      {!showWelcome && isAuthenticated && <AIAssistant />}
+
+      {/* Custom Launching Welcome Screen */}
+      <AnimatePresence>
+        {showWelcome && (
+          <motion.div
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ duration: 0.6, ease: 'easeInOut' }}
+            className="fixed inset-0 z-[10000] flex flex-col items-center justify-between bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 p-8 text-white text-center"
+          >
+            {/* Top Empty Spacing */}
+            <div />
+
+            {/* Glowing Logo & Title */}
+            <div className="flex flex-col items-center">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: [0.8, 1.1, 1], opacity: 1 }}
+                transition={{ duration: 1, type: 'spring' }}
+                className="w-24 h-24 rounded-full bg-indigo-600/30 border border-indigo-400/40 shadow-[0_0_50px_rgba(99,102,241,0.5)] flex items-center justify-center mb-6"
+              >
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 15, ease: 'linear' }}
+                >
+                  <IonIcon icon={sparklesOutline} className="text-5xl text-indigo-300" />
+                </motion.div>
+              </motion.div>
+
+              <motion.h1
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="text-5xl font-black tracking-wider bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent drop-shadow-md"
+              >
+                Home App
+              </motion.h1>
+
+              <motion.p
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="text-sm tracking-widest text-indigo-300/80 font-bold uppercase mt-2"
+              >
+                Automated Premium Manager
+              </motion.p>
+            </div>
+
+            {/* Bottom Progress Bar */}
+            <div className="w-full max-w-xs space-y-3 pb-8">
+              <div className="flex justify-between items-center text-xs text-indigo-300/70 font-semibold px-1">
+                <span>SYSTEM LOADING...</span>
+                <span>{welcomeProgress}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"
+                  style={{ width: `${welcomeProgress}%` }}
+                  transition={{ ease: 'easeOut' }}
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Lock Screen */}
+      {!isAuthenticated && !showWelcome && (
+        <div className="fixed inset-0 z-[9000] flex flex-col items-center justify-center bg-gradient-to-tr from-slate-50 via-slate-100 to-indigo-50/30">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="text-center p-8 bg-white/80 border border-slate-200/50 rounded-[32px] shadow-2xl backdrop-blur-md max-w-sm w-full mx-4"
+          >
+            <IonIcon icon={lockClosed} className="text-5xl text-indigo-600 mb-4" />
+            <h2 className="text-2xl font-black text-slate-800 mb-2">Workspace Secured</h2>
+            <p className="text-sm text-slate-500 mb-6 font-medium">Verify your biometrics or click unlock to access secure database storage.</p>
+            <button
+              onClick={performBiometricAuth}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold tracking-wide py-3 px-8 rounded-2xl shadow-lg hover:shadow-xl active:scale-[0.98] transition-all"
+            >
+              Unlock Vault
+            </button>
+          </motion.div>
         </div>
-      </div>
-    )}
+      )}
 
-    {!isAuthenticated && !showWelcome && (
-      <div className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-gray-50">
-        <IonIcon icon={lockClosed} className="text-6xl text-gray-400 mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">App Locked</h2>
-        <button onClick={performBiometricAuth} className="bg-blue-600 text-white font-medium tracking-wide py-3 px-8 rounded-full shadow-sm hover:shadow active:scale-95 transition-all">
-          Unlock with Biometrics
-        </button>
-      </div>
-    )}
+      {/* App Routes & Tabs */}
+      <IonReactRouter>
+        <IonTabs className="app-vertical-tabs">
+          <IonRouterOutlet>
+            <Route exact path="/eb">
+              <EBReadingTab />
+            </Route>
+            <Route exact path="/planned">
+              <PlannedWorksTab />
+            </Route>
+            <Route exact path="/completed">
+              <CompletedWorksTab />
+            </Route>
+            <Route exact path="/travel">
+              <TravelTicketsTab />
+            </Route>
+            <Route exact path="/payments">
+              <PaymentTab />
+            </Route>
+            <Route exact path="/deposits">
+              <DepositsTab />
+            </Route>
+            <Route exact path="/dashboard">
+              <DashboardTab />
+            </Route>
+            <Route exact path="/logs">
+              <AuditLogsTab />
+            </Route>
+            <Route exact path="/settings">
+              <SettingsTab />
+            </Route>
+            <Route exact path="/">
+              <Redirect to="/dashboard" />
+            </Route>
+          </IonRouterOutlet>
 
-    <IonReactRouter>
-      <IonTabs className="app-vertical-tabs">
-        <IonRouterOutlet>
-          <Route exact path="/eb">
-            <EBReadingTab />
-          </Route>
-          <Route exact path="/planned">
-            <PlannedWorksTab />
-          </Route>
-          <Route exact path="/completed">
-            <CompletedWorksTab />
-          </Route>
-          <Route exact path="/travel">
-            <TravelTicketsTab />
-          </Route>
-          <Route exact path="/payments">
-            <PaymentTab />
-          </Route>
-          <Route exact path="/deposits">
-            <DepositsTab />
-          </Route>
-          <Route exact path="/dashboard">
-            <DashboardTab />
-          </Route>
-          <Route exact path="/settings">
-            <SettingsTab />
-          </Route>
-          <Route exact path="/">
-            <Redirect to="/dashboard" />
-          </Route>
-        </IonRouterOutlet>
-
-        <IonTabBar slot="bottom" className="app-sidebar-tabs">
-          <IonTabButton tab="dashboard" href="/dashboard">
-            <IonIcon icon={pieChart} />
-            <IonLabel>Dashboard</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="planned" href="/planned">
-            <IonIcon icon={list} />
-            <IonLabel>Planned</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="completed" href="/completed">
-            <IonIcon icon={checkmarkDone} />
-            <IonLabel>Completed</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="eb" href="/eb">
-            <IonIcon icon={flash} />
-            <IonLabel>EB</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="travel" href="/travel">
-            <IonIcon icon={train} />
-            <IonLabel>Travel</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="payments" href="/payments">
-            <IonIcon icon={wallet} />
-            <IonLabel>Payments</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="deposits" href="/deposits">
-            <IonIcon icon={cash} />
-            <IonLabel>Deposits</IonLabel>
-          </IonTabButton>
-          <IonTabButton tab="settings" href="/settings">
-            <IonIcon icon={settingsOutline} />
-            <IonLabel>Settings</IonLabel>
-          </IonTabButton>
-        </IonTabBar>
-      </IonTabs>
-    </IonReactRouter>
-  </IonApp>
+          <IonTabBar slot="bottom" className="app-sidebar-tabs">
+            <IonTabButton tab="dashboard" href="/dashboard">
+              <IonIcon icon={pieChart} />
+              <IonLabel>Dashboard</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="planned" href="/planned">
+              <IonIcon icon={list} />
+              <IonLabel>Planned</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="completed" href="/completed">
+              <IonIcon icon={checkmarkDone} />
+              <IonLabel>Completed</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="eb" href="/eb">
+              <IonIcon icon={flash} />
+              <IonLabel>EB</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="travel" href="/travel">
+              <IonIcon icon={train} />
+              <IonLabel>Travel</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="payments" href="/payments">
+              <IonIcon icon={wallet} />
+              <IonLabel>Payments</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="deposits" href="/deposits">
+              <IonIcon icon={cash} />
+              <IonLabel>Deposits</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="logs" href="/logs">
+              <IonIcon icon={documentTextOutline} />
+              <IonLabel>Logs</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="settings" href="/settings">
+              <IonIcon icon={settingsOutline} />
+              <IonLabel>Settings</IonLabel>
+            </IonTabButton>
+          </IonTabBar>
+        </IonTabs>
+      </IonReactRouter>
+    </IonApp>
   );
 };
 

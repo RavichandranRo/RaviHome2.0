@@ -19,12 +19,14 @@ import {
   useIonToast,
 } from '@ionic/react';
 import { useAppStore } from '../store/useAppStore';
+import { useNotificationStore } from '../store/useNotificationStore';
 import { ExportService } from '../services/ExportService';
 
 const SettingsTab: React.FC = () => {
   const [presentAlert] = useIonAlert();
-  const [presentToast] = useIonToast();
   const store = useAppStore();
+  const showNotification = useNotificationStore(state => state.showNotification);
+  const triggerAnimation = useNotificationStore(state => state.triggerAnimation);
 
   // Custom Export States
   const [exportModule, setExportModule] = useState('Expenses');
@@ -32,6 +34,12 @@ const SettingsTab: React.FC = () => {
   const [exportDuration, setExportDuration] = useState('Today');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+
+  const handleThemeChange = (newTheme: 'light' | 'dark') => {
+    store.setTheme(newTheme);
+    triggerAnimation('THEME');
+    showNotification('success', 'Theme Updated', `Interface set to ${newTheme.toUpperCase()} mode.`);
+  };
 
   // Trigger Audit Logs Archive & Purge
   const handleArchive = () => {
@@ -50,12 +58,13 @@ const SettingsTab: React.FC = () => {
             try {
               const uri = await store.archiveAndPurgeAuditLogs(days);
               if (uri) {
-                presentToast({ message: `Logs archived to: ${uri}`, duration: 4000, color: 'success' });
+                triggerAnimation('ARCHIVE');
+                showNotification('success', 'Logs Backup Complete', `Audit logs compiled. File created.`);
               } else {
-                presentToast({ message: 'No logs are old enough to archive.', duration: 2000, color: 'medium' });
+                showNotification('info', 'Backup Status', 'No audit logs exceed the duration limit.');
               }
             } catch (e) {
-              presentToast({ message: 'Failed to archive logs.', duration: 2000, color: 'danger' });
+              showNotification('failure', 'Backup Failed', 'Archive zip compressor failed.');
             }
           }
         }
@@ -81,12 +90,12 @@ const SettingsTab: React.FC = () => {
       startTime = now.getTime() - (365 * 24 * 60 * 60 * 1000);
     } else if (exportDuration === 'Custom Range') {
       if (!customStart || !customEnd) {
-        presentToast({ message: 'Please select both start and end dates.', duration: 2000, color: 'danger' });
+        showNotification('validation', 'Validation check', 'Please specify both start and end date boundaries.');
         return;
       }
       startTime = new Date(customStart).getTime();
       // Set the end time to the very end of the selected day
-      endTime = new Date(customEnd).getTime() + (24 * 60 * 60 * 1000) - 1; 
+      endTime = new Date(customEnd).getTime() + (24 * 60 * 60 * 1000) - 1;
     }
 
     // Grab raw data from store
@@ -96,6 +105,7 @@ const SettingsTab: React.FC = () => {
       case 'Deposits': dataToExport = store.deposits; break;
       case 'Tasks': dataToExport = store.tasks; break;
       case 'Tickets': dataToExport = store.tickets; break;
+      case 'EBReadings': dataToExport = store.ebReadings; break;
       case 'AuditLogs': dataToExport = store.auditLogs; break;
     }
 
@@ -105,15 +115,15 @@ const SettingsTab: React.FC = () => {
       if (exportModule === 'AuditLogs') itemTime = new Date(item.date).getTime();
       else if (exportModule === 'Deposits') itemTime = new Date(item.startDate || Date.now()).getTime();
       else if (exportModule === 'Tickets') itemTime = new Date(item.time || Date.now()).getTime();
-      else itemTime = new Date(item.date).getTime(); // Expenses, Tasks
+      else itemTime = new Date(item.date).getTime(); // Expenses, Tasks, EB readings
 
       // Fallback for corrupted date items
-      if (isNaN(itemTime)) return true; 
+      if (isNaN(itemTime)) return true;
       return itemTime >= startTime && itemTime <= endTime;
     });
 
     if (filteredData.length === 0) {
-      presentToast({ message: 'No records found for the selected range.', duration: 2000, color: 'warning' });
+      showNotification('validation', 'Validation check', 'No database entries found matching the filter range.');
       return;
     }
 
@@ -123,11 +133,11 @@ const SettingsTab: React.FC = () => {
       if (exportFormat === 'CSV') ExportService.exportToCSV(filteredData, filename);
       else if (exportFormat === 'Excel') ExportService.exportToExcel(filteredData, filename);
       else if (exportFormat === 'PDF') ExportService.exportToPDF(filteredData, filename, `${exportModule} Report`);
-      
-      presentToast({ message: 'Export successful!', duration: 2000, color: 'success' });
+
+      showNotification('success', 'Export Success', `${exportModule} report compiled in ${exportFormat} format.`);
       store.addAuditLog(`Exported ${filteredData.length} ${exportModule} records as ${exportFormat}`);
     } catch (e) {
-      presentToast({ message: 'Failed to export file.', duration: 2000, color: 'danger' });
+      showNotification('failure', 'Export Failure', 'Database report compilation failed.');
     }
   };
 
@@ -139,12 +149,12 @@ const SettingsTab: React.FC = () => {
         </IonToolbar>
       </IonHeader>
       <IonContent className="ion-padding bg-gray-50">
-        
+
         <IonCard className="mb-6 shadow-sm border border-gray-100">
           <IonCardHeader><IonCardTitle className="text-lg">Advanced Export Builder</IonCardTitle></IonCardHeader>
           <IonCardContent>
             <IonSelect fill="outline" label="Data to Export" labelPlacement="floating" value={exportModule} onIonChange={e => setExportModule(e.detail.value)} className="mb-4">
-              {['Expenses', 'Deposits', 'Tasks', 'Tickets', 'AuditLogs'].map(mod => <IonSelectOption key={mod} value={mod}>{mod}</IonSelectOption>)}
+              {['Expenses', 'Deposits', 'Tasks', 'Tickets', 'EBReadings', 'AuditLogs'].map(mod => <IonSelectOption key={mod} value={mod}>{mod}</IonSelectOption>)}
             </IonSelect>
             <IonSelect fill="outline" label="Export Format" labelPlacement="floating" value={exportFormat} onIonChange={e => setExportFormat(e.detail.value)} className="mb-4">
               {['CSV', 'Excel', 'PDF'].map(fmt => <IonSelectOption key={fmt} value={fmt}>{fmt}</IonSelectOption>)}
@@ -161,6 +171,16 @@ const SettingsTab: React.FC = () => {
             )}
 
             <IonButton expand="block" onClick={handleExport}>Export Data</IonButton>
+          </IonCardContent>
+        </IonCard>
+
+        <IonCard className="mb-6 shadow-sm border border-gray-100">
+          <IonCardHeader><IonCardTitle className="text-lg">Appearance</IonCardTitle></IonCardHeader>
+          <IonCardContent>
+            <IonSelect fill="outline" label="Theme Switcher" labelPlacement="floating" value={store.theme} onIonChange={e => handleThemeChange(e.detail.value)} className="mb-2">
+              <IonSelectOption value="light">Light Mode</IonSelectOption>
+              <IonSelectOption value="dark">Dark Mode</IonSelectOption>
+            </IonSelect>
           </IonCardContent>
         </IonCard>
 

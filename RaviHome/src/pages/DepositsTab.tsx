@@ -21,13 +21,13 @@ import {
   IonItem,
   IonCheckbox,
   IonSearchbar,
-  useIonAlert,
   useIonToast,
 } from '@ionic/react';
-import { addOutline, checkmarkCircleOutline, closeOutline, createOutline, eyeOutline, trashOutline } from 'ionicons/icons';
+import { addOutline, checkmarkCircleOutline, closeOutline, createOutline, eyeOutline, trashOutline, walletOutline } from 'ionicons/icons';
 import { useForm } from 'react-hook-form';
 import ExportMenu from '../components/ExportMenu';
 import { Deposit, useAppStore } from '../store/useAppStore';
+import { useNotificationStore } from '../store/useNotificationStore';
 
 const INDIAN_BANK_RATES = [
   { bank: 'State Bank of India', fd: 6.85, rd: 6.75 },
@@ -59,7 +59,7 @@ type DepositForm = Omit<Deposit, 'id' | 'type'> & {
 };
 
 const emptyDeposit: DepositForm = {
-  bank: '',
+  bank: 'Punjab National Bank',
   amount: 0,
   durationDays: 365,
   roi: 0,
@@ -72,13 +72,15 @@ const DepositsTab: React.FC = () => {
   const [type, setType] = useState<'FD' | 'RD'>('FD');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingDeposit, setEditingDeposit] = useState<Deposit | null>(null);
+  const [viewingDeposit, setViewingDeposit] = useState<Deposit | null>(null);
   const { register, handleSubmit, reset, watch, setValue } = useForm<DepositForm>({ defaultValues: emptyDeposit });
   const deposits = useAppStore((state) => state.deposits);
   const addDeposit = useAppStore((state) => state.addDeposit);
   const updateDeposit = useAppStore((state) => state.updateDeposit);
   const deleteDeposit = useAppStore((state) => state.deleteDeposit);
   const [presentToast] = useIonToast();
-  const [presentAlert] = useIonAlert();
+  const showNotification = useNotificationStore(state => state.showNotification);
+  const triggerAnimation = useNotificationStore(state => state.triggerAnimation);
 
   // Data Grid States
   const [searchTerm, setSearchTerm] = useState('');
@@ -110,11 +112,12 @@ const DepositsTab: React.FC = () => {
   const duration = watch('durationDays', 0);
   const roi = watch('roi', 0);
 
-  const calculateMaturity = (amt: number, dur: number, rate: number) => {
+  const getMaturity = (amt: number, dur: number, rate: number, depType: 'FD' | 'RD') => {
     if (!amt || !dur || !rate) return 0;
     const months = dur / (365 / 12); // convert days to months for RD calculation
-    return type === 'FD' ? amt * Math.pow(1 + rate / 100, dur / 365) : amt * months + (amt * months * (months + 1) / 2) * (rate / 100) / 12;
+    return depType === 'FD' ? amt * Math.pow(1 + rate / 100, dur / 365) : amt * months + (amt * months * (months + 1) / 2) * (rate / 100) / 12;
   };
+  const calculateMaturity = (amt: number, dur: number, rate: number) => getMaturity(amt, dur, rate, type);
 
   const openAddForm = () => {
     setEditingDeposit(null);
@@ -158,23 +161,23 @@ const DepositsTab: React.FC = () => {
   };
 
   const onSubmit = (data: DepositForm) => {
+    if (!data.startDate) data.startDate = new Date().toISOString().split('T')[0];
+    if (!data.maturityDate) data.maturityDate = new Date(new Date(data.startDate).getTime() + data.durationDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
     if (editingDeposit) {
       updateDeposit(editingDeposit.id, { ...data, type });
-      presentToast({ message: 'Deposit updated successfully.', duration: 2000, color: 'success', position: 'top' });
+      triggerAnimation('DEPOSIT');
+      showNotification('success', 'Deposit Updated', `${type} deposit at ${data.bank} updated successfully.`);
     } else {
       addDeposit({ ...data, type });
-      presentToast({ message: `${type} deposit saved successfully.`, duration: 2000, color: 'success', position: 'top' });
+      triggerAnimation('DEPOSIT');
+      showNotification('success', 'Deposit Opened', `${type} deposit of Rs. ${data.amount} opened at ${data.bank}.`);
     }
     closeForm();
   };
 
   const viewDeposit = (deposit: Deposit) => {
-    const days = (deposit as any).durationDays || ((deposit as any).durationMonths ? (deposit as any).durationMonths * 30 : 0);
-    presentAlert({
-      header: deposit.bank,
-      message: `${deposit.type}\nAmount: Rs. ${deposit.amount}\nDuration: ${days} days\nInterest: ${deposit.roi}%\nStart Date: ${(deposit as any).startDate || 'N/A'}\nMaturity: ${(deposit as any).maturityDate || 'N/A'}\nAuto Renewal: ${(deposit as any).autoRenewal ? 'Yes' : 'No'}`,
-      buttons: ['OK'],
-    });
+    setViewingDeposit(deposit);
   };
 
   return (
@@ -203,21 +206,21 @@ const DepositsTab: React.FC = () => {
 
           <div className="overflow-x-auto bg-white rounded-lg shadow border border-gray-100">
             <table className="w-full text-left border-collapse whitespace-nowrap">
-              <thead className="bg-gray-100 border-b border-gray-200">
+              <thead className="bg-blue-500 text-white border-b-2 border-blue-600">
                 <tr>
-                  <th className="p-3 font-semibold text-gray-700 text-sm">S.No</th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm cursor-pointer hover:bg-gray-200 transition-colors" onClick={() => requestSort('bank')}>
+                  <th className="p-3 font-semibold text-sm border border-blue-600">S.No</th>
+                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('bank')}>
                     Bank {sortConfig?.key === 'bank' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm cursor-pointer hover:bg-gray-200 transition-colors" onClick={() => requestSort('amount')}>
+                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('amount')}>
                     Amount {sortConfig?.key === 'amount' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
                   </th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm">Start Date</th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm">Maturity Date</th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm">Duration</th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm">ROI</th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm">Auto Renewal</th>
-                  <th className="p-3 font-semibold text-gray-700 text-sm text-center">Actions</th>
+                  <th className="p-3 font-semibold text-sm border border-blue-600">Start Date</th>
+                  <th className="p-3 font-semibold text-sm border border-blue-600">Maturity Date</th>
+                  <th className="p-3 font-semibold text-sm border border-blue-600">Duration</th>
+                  <th className="p-3 font-semibold text-sm border border-blue-600">ROI</th>
+                  <th className="p-3 font-semibold text-sm border border-blue-600">Auto Renewal</th>
+                  <th className="p-3 font-semibold text-sm text-center border border-blue-600">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -283,14 +286,20 @@ const DepositsTab: React.FC = () => {
               <IonSelect fill="outline" label="Bank" labelPlacement="floating" {...register('bank', { required: true })} onIonChange={(event) => setBankRate(event.detail.value)}>
                 {INDIAN_BANK_RATES.map((item) => <IonSelectOption key={item.bank} value={item.bank}>{item.bank}</IonSelectOption>)}
               </IonSelect>
-              <IonInput fill="outline" label={type === 'RD' ? 'Monthly Amount' : 'Principal Amount'} labelPlacement="floating" type="number" {...register('amount', { required: true, valueAsNumber: true })} />
+              <IonInput fill="outline" label={type === 'RD' ? 'Monthly Amount' : 'Principal Amount'} labelPlacement="floating" type="number" step="0.01" {...register('amount', { required: true, valueAsNumber: true })} />
               <IonInput fill="outline" label="Duration (Days)" labelPlacement="floating" type="number" {...register('durationDays', { required: true, valueAsNumber: true })} />
               <IonInput fill="outline" label="Rate of Interest (%)" labelPlacement="floating" type="number" step="0.01" {...register('roi', { required: true, valueAsNumber: true })} />
               
               <IonInput fill="outline" label="Start Date" labelPlacement="floating" type="date" {...register('startDate')} />
               <IonInput fill="outline" label="Maturity Date" labelPlacement="floating" type="date" {...register('maturityDate')} />
               <IonItem lines="none" className="bg-gray-50 rounded-lg mb-4">
-                <IonCheckbox labelPlacement="end" {...register('autoRenewal')}>Auto Renewal</IonCheckbox>
+                <IonCheckbox 
+                  labelPlacement="end" 
+                  checked={!!watch('autoRenewal')}
+                  onIonChange={(e) => setValue('autoRenewal', e.detail.checked)}
+                >
+                  Auto Renewal
+                </IonCheckbox>
               </IonItem>
 
               <div className="bg-blue-50 p-4 rounded-lg text-center">
@@ -302,6 +311,43 @@ const DepositsTab: React.FC = () => {
                 <IonButton type="submit"><IonIcon icon={checkmarkCircleOutline} slot="start" />Submit</IonButton>
               </div>
             </form>
+          </IonContent>
+        </IonModal>
+
+        {/* View Deposit Bottom Sheet Modal */}
+        <IonModal isOpen={!!viewingDeposit} onDidDismiss={() => setViewingDeposit(null)} breakpoints={[0, 0.75, 1]} initialBreakpoint={0.75}>
+          <IonContent className="ion-padding bg-gray-50">
+            {viewingDeposit && (
+              <div className="p-2">
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 p-3 rounded-full text-blue-600">
+                      <IonIcon icon={walletOutline} className="text-2xl" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-800">{viewingDeposit.bank}</h2>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${viewingDeposit.type === 'FD' ? 'bg-purple-100 text-purple-700' : 'bg-teal-100 text-teal-700'}`}>
+                    {viewingDeposit.type}
+                  </span>
+                </div>
+                
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4 mb-6">
+                  <div className="flex justify-between border-b pb-3"><span className="text-gray-500">Principal Amount</span><span className="font-bold text-gray-800 text-lg">Rs. {viewingDeposit.amount.toFixed(2)}</span></div>
+                  <div className="flex justify-between border-b pb-3"><span className="text-gray-500">Duration</span><span className="font-bold">{(viewingDeposit as any).durationDays || ((viewingDeposit as any).durationMonths ? (viewingDeposit as any).durationMonths * 30 : 0)} Days</span></div>
+                  <div className="flex justify-between border-b pb-3"><span className="text-gray-500">Interest Rate (ROI)</span><span className="font-bold text-green-600">{viewingDeposit.roi}%</span></div>
+                  <div className="flex justify-between border-b pb-3"><span className="text-gray-500">Start Date</span><span className="font-bold">{viewingDeposit.startDate || 'N/A'}</span></div>
+                  <div className="flex justify-between border-b pb-3"><span className="text-gray-500">Maturity Date</span><span className="font-bold">{viewingDeposit.maturityDate || 'N/A'}</span></div>
+                  <div className="flex justify-between border-b pb-3"><span className="text-gray-500">Auto Renewal</span><span className="font-bold">{viewingDeposit.autoRenewal ? 'Yes' : 'No'}</span></div>
+                  {viewingDeposit.lastRenewedDate && (
+                     <div className="flex justify-between border-b pb-3"><span className="text-gray-500">Last Renewed</span><span className="font-bold">{viewingDeposit.lastRenewedDate}</span></div>
+                  )}
+                  <div className="flex justify-between pt-2">
+                    <span className="text-gray-500 font-medium">Est. Maturity Amount</span>
+                    <span className="font-bold text-blue-600 text-xl">Rs. {getMaturity(viewingDeposit.amount, (viewingDeposit as any).durationDays || ((viewingDeposit as any).durationMonths ? (viewingDeposit as any).durationMonths * 30 : 0), viewingDeposit.roi, viewingDeposit.type).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </IonContent>
         </IonModal>
       </IonContent>

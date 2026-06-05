@@ -354,3 +354,22 @@ html.app-dark ion-toolbar {
     grid-template-columns: 1fr;
   }
 }
+.data-grid-table thead.data-grid-header {
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  color: #ffffff;
+  border-bottom: 0;
+}
+
+.data-grid-table thead.data-grid-header th {
+  color: #ffffff;
+  letter-spacing: 0.01em;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.data-grid-table thead.data-grid-header th:last-child {
+  border-right: 0;
+}
+
+.data-grid-table thead.data-grid-header th.cursor-pointer:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
