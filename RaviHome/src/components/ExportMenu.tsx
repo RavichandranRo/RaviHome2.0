@@ -27,9 +27,14 @@ const ExportMenu: React.FC<ExportMenuProps> = ({ data, filename, title }) => {
   };
 
   return (
-    <IonButton className="icon-button download-button" fill="clear" onClick={openExportMenu} title="Download">
-      <IonIcon icon={downloadOutline} slot="icon-only" />
-    </IonButton>
+    <button
+      type="button"
+      onClick={openExportMenu}
+      className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-100 flex items-center justify-center transition-colors"
+      title="Download/Export"
+    >
+      <IonIcon icon={downloadOutline} className="text-sm" />
+    </button>
   );
 };
 

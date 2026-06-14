@@ -41,6 +41,23 @@ const SettingsTab: React.FC = () => {
     showNotification('success', 'Theme Updated', `Interface set to ${newTheme.toUpperCase()} mode.`);
   };
 
+  const themes = [
+    { id: 'indigo', name: 'Aura Indigo', color: '#6366f1' },
+    { id: 'teal', name: 'Lara Teal', color: '#14b8a6' },
+    { id: 'green', name: 'Lara Green', color: '#10b981' },
+    { id: 'blue', name: 'Saga Blue', color: '#2196f3' },
+    { id: 'orange', name: 'Vela Orange', color: '#f57c00' },
+    { id: 'purple', name: 'Arya Purple', color: '#9c27b0' },
+    { id: 'pink', name: 'Lara Pink', color: '#ec4899' },
+    { id: 'amber', name: 'Lara Amber', color: '#f59e0b' }
+  ] as const;
+
+  const handleThemeColorChange = (color: typeof themes[number]['id']) => {
+    store.setThemeColor(color);
+    document.documentElement.setAttribute('data-theme-color', color);
+    showNotification('success', 'Theme Color Updated', `Interface theme color set to ${themes.find(t => t.id === color)?.name}.`);
+  };
+
   // Trigger Audit Logs Archive & Purge
   const handleArchive = () => {
     presentAlert({
@@ -177,10 +194,41 @@ const SettingsTab: React.FC = () => {
         <IonCard className="mb-6 shadow-sm border border-gray-100">
           <IonCardHeader><IonCardTitle className="text-lg">Appearance</IonCardTitle></IonCardHeader>
           <IonCardContent>
-            <IonSelect fill="outline" label="Theme Switcher" labelPlacement="floating" value={store.theme} onIonChange={e => handleThemeChange(e.detail.value)} className="mb-2">
+            <IonSelect fill="outline" label="Theme Switcher" labelPlacement="floating" value={store.theme} onIonChange={e => handleThemeChange(e.detail.value)} className="mb-4">
               <IonSelectOption value="light">Light Mode</IonSelectOption>
               <IonSelectOption value="dark">Dark Mode</IonSelectOption>
             </IonSelect>
+
+            <div className="mt-4">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-3">Color Accent Theme</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {themes.map((t) => (
+                  <div
+                    key={t.id}
+                    onClick={() => handleThemeColorChange(t.id)}
+                    className={`relative cursor-pointer rounded-2xl border-2 p-3 flex flex-col justify-between h-[100px] transition-all bg-white hover:bg-slate-50 border-slate-200 ${
+                      store.themeColor === t.id ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/5' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-[11px] font-bold text-slate-700">{t.name}</span>
+                      <div
+                        className="w-4 h-4 rounded-full flex items-center justify-center text-white"
+                        style={{ backgroundColor: t.color }}
+                      >
+                        {store.themeColor === t.id && (
+                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    {/* Visual color bar */}
+                    <div className="w-full h-1.5 rounded-full mt-2" style={{ backgroundColor: t.color }} />
+                  </div>
+                ))}
+              </div>
+            </div>
           </IonCardContent>
         </IonCard>
 

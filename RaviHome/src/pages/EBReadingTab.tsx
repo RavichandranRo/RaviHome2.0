@@ -1,27 +1,21 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   IonButton,
-  IonCard,
-  IonCardContent,
   IonContent,
   IonFab,
-  IonFabButton,
   IonHeader,
   IonIcon,
   IonInput,
   IonModal,
   IonPage,
-  IonSearchbar,
   IonTitle,
-  IonToolbar,
-  useIonAlert,
-  useIonToast,
+  IonToolbar
 } from '@ionic/react';
-import { addOutline, checkmarkCircleOutline, closeOutline, createOutline, eyeOutline, trashOutline } from 'ionicons/icons';
+import { add, checkmarkCircleOutline, closeOutline, createOutline, eyeOutline, trashOutline } from 'ionicons/icons';
 import { useForm } from 'react-hook-form';
-import ExportMenu from '../components/ExportMenu';
 import { useAppStore } from '../store/useAppStore';
 import { useNotificationStore } from '../store/useNotificationStore';
+import PremiumDataGrid, { ColumnDef } from '../components/PremiumDataGrid';
 
 interface EBForm {
   previousReading: number;
@@ -36,74 +30,32 @@ interface EBEntry extends EBForm {
 }
 
 const EBReadingTab: React.FC = () => {
-  const { register, handleSubmit, reset } = useForm<EBForm>();
-  const entries = useAppStore(
-    (state) => state.ebReadings
-  );
-
-  const addEBReading = useAppStore(
-    (state) => state.addEBReading
-  );
-
-  const updateEBReading = useAppStore(
-    (state) => state.updateEBReading
-  );
-
-  const deleteEBReading = useAppStore(
-    (state) => state.deleteEBReading
-  );
-  const [editingEntry, setEditingEntry] = useState<EBEntry | null>(null);
-  const [viewingEntry, setViewingEntry] = useState<EBEntry | null>(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const { register, handleSubmit, reset, setValue } = useForm<EBForm>();
+  const entries = useAppStore((state) => state.ebReadings);
+  const addEBReading = useAppStore((state) => state.addEBReading);
+  const updateEBReading = useAppStore((state) => state.updateEBReading);
+  const deleteEBReading = useAppStore((state) => state.deleteEBReading);
   const addExpense = useAppStore((state) => state.addExpense);
-  const [presentToast] = useIonToast();
   const showNotification = useNotificationStore(state => state.showNotification);
   const triggerAnimation = useNotificationStore(state => state.triggerAnimation);
 
-  // Data Grid States
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [editingEntry, setEditingEntry] = useState<EBEntry | null>(null);
+  const [viewingEntry, setViewingEntry] = useState<EBEntry | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const processedData = useMemo(() => {
-    let data = [...entries];
-    if (searchTerm) {
-      data = data.filter(d => d.date.toLowerCase().includes(searchTerm.toLowerCase()));
-    }
-    if (sortConfig) {
-      data.sort((a: any, b: any) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return data;
-  }, [entries, searchTerm, sortConfig]);
-
-  const totalPages = Math.ceil(processedData.length / itemsPerPage);
-  const paginatedData = processedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  const requestSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
-
-  const calculateTNBill = (prev: number, curr: number) => {
-    const units = curr - prev;
+  const calculateTNBill = (prev: any, curr: any) => {
+    const prevNum = Number(prev) || 0;
+    const currNum = Number(curr) || 0;
+    const units = Math.round(currNum - prevNum);
     let cost = 0;
     
-    if (units <= 0) return { units: 0, cost: 0 };
+    if (units <= 0 || isNaN(units)) return { units: 0, cost: 0 };
 
     if (units <= 100) {
       cost = 0;
     } else if (units <= 500) {
       cost += Math.max(0, Math.min(units - 100, 100)) * 2.25;
-      cost += Math.max(0, Math.min(units - 200, 200)) * 4.50;
-      cost += Math.max(0, units - 400) * 6.00;
+      cost += Math.max(0, Math.min(units - 200, 300)) * 4.50;
     } else {
       cost += Math.max(0, Math.min(units - 100, 300)) * 4.50;
       cost += Math.max(0, Math.min(units - 400, 100)) * 6.00;
@@ -113,23 +65,26 @@ const EBReadingTab: React.FC = () => {
       cost += Math.max(0, units - 1000) * 11.00;
     }
     
-    return { units, cost };
+    return { units, cost: parseFloat(cost.toFixed(2)) };
   };
 
   const openAddForm = () => {
     setEditingEntry(null);
     let previousReading = 0;
     if (entries.length > 0) {
-      const sortedEntries = [...entries].sort((a, b) => Number(b.id) - Number(a.id));
-      previousReading = sortedEntries[0].currentReading;
+      previousReading = Math.max(...entries.map(e => Number(e.currentReading) || 0));
     }
     reset({ previousReading, currentReading: undefined as any });
+    setValue('previousReading', previousReading);
+    setValue('currentReading', undefined as any);
     setIsFormOpen(true);
   };
 
   const openEditForm = (entry: EBEntry) => {
     setEditingEntry(entry);
     reset({ previousReading: entry.previousReading, currentReading: entry.currentReading });
+    setValue('previousReading', entry.previousReading);
+    setValue('currentReading', entry.currentReading);
     setIsFormOpen(true);
   };
 
@@ -139,27 +94,20 @@ const EBReadingTab: React.FC = () => {
   };
 
   const onSubmit = (data: EBForm) => {
-    const { units, cost } = calculateTNBill(data.previousReading, data.currentReading);
-    const entry: EBEntry = {
-      id: editingEntry?.id || Date.now().toString(),
-      date: editingEntry?.date || new Date().toLocaleDateString(),
-      previousReading: data.previousReading,
-      currentReading: data.currentReading,
-      units,
-      amount: cost,
-    };
-
+    const prev = Number(data.previousReading) || 0;
+    const curr = Number(data.currentReading) || 0;
+    const { units, cost } = calculateTNBill(prev, curr);
     if (editingEntry) {
       updateEBReading(editingEntry.id, {
-        previousReading: data.previousReading,
-        currentReading: data.currentReading,
+        previousReading: prev,
+        currentReading: curr,
         units,
         amount: cost,
       });
     } else {
       addEBReading({
-        previousReading: data.previousReading,
-        currentReading: data.currentReading,
+        previousReading: prev,
+        currentReading: curr,
         units,
         amount: cost,
       });
@@ -176,85 +124,96 @@ const EBReadingTab: React.FC = () => {
     setViewingEntry(entry);
   };
 
+  // Define columns definition
+  const columns: ColumnDef<EBEntry>[] = [
+    {
+      key: 'sno',
+      label: 'S.No',
+      render: (_, idx) => <span className="font-bold text-slate-400">{idx + 1}</span>,
+      sortable: false
+    },
+    {
+      key: 'date',
+      label: 'Reading Date',
+      sortable: true
+    },
+    {
+      key: 'previousReading',
+      label: 'Prev Reading',
+      sortable: true
+    },
+    {
+      key: 'currentReading',
+      label: 'Current Reading',
+      sortable: true
+    },
+    {
+      key: 'units',
+      label: 'Units Consumed',
+      sortable: true,
+      render: (item) => <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{item.units}</span>
+    },
+    {
+      key: 'amount',
+      label: 'Amount (Rs)',
+      sortable: true,
+      render: (item) => <span className="font-extrabold text-red-500">Rs. {item.amount.toFixed(2)}</span>
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (item) => (
+        <div className="flex gap-1">
+          <IonButton fill="clear" size="small" onClick={() => viewEntry(item)}>
+            <IonIcon icon={eyeOutline} slot="icon-only" />
+          </IonButton>
+          <IonButton fill="clear" size="small" onClick={() => openEditForm(item)}>
+            <IonIcon icon={createOutline} slot="icon-only" />
+          </IonButton>
+          <IonButton fill="clear" color="danger" size="small" onClick={() => deleteEBReading(item.id)}>
+            <IonIcon icon={trashOutline} slot="icon-only" />
+          </IonButton>
+        </div>
+      )
+    }
+  ];
+
   return (
     <IonPage>
       <IonHeader className="ion-no-border">
         <IonToolbar className="bg-gray-50">
-          <IonTitle><span className="app-page-title">EB Reading</span></IonTitle>
-          <div slot="end" className="export-actions">
-            <ExportMenu data={entries} filename="EB_Readings" title="EB Readings Report" />
-          </div>
+          <IonTitle><span className="app-page-title">EB Readings</span></IonTitle>
         </IonToolbar>
       </IonHeader>
       <IonContent className="ion-padding bg-gray-50">
         <div className="travel-shell">
-          <IonSearchbar
-            value={searchTerm}
-            onIonInput={(e) => { setSearchTerm(e.detail.value!); setCurrentPage(1); }}
-            placeholder="Search dates..."
-            className="mb-4 px-0"
+          <PremiumDataGrid
+            data={entries as EBEntry[]}
+            columns={columns}
+            searchPlaceholder="Search readings..."
+            searchFields={['date', 'previousReading', 'currentReading', 'units', 'amount']}
+            exportFilename="EB_Readings_Report"
+            exportTitle="EB Electricity Readings Report"
           />
-
-          <div className="overflow-x-auto bg-white rounded-lg shadow border border-gray-100">
-            <table className="w-full text-left border-collapse whitespace-nowrap">
-              <thead className="bg-blue-500 text-white border-b-2 border-blue-600">
-                <tr>
-                  <th className="p-3 font-semibold text-sm border border-blue-600">S.No</th>
-                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('date')}>
-                    Date {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('units')}>
-                    Units {sortConfig?.key === 'units' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('amount')}>
-                    Amount {sortConfig?.key === 'amount' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="p-3 font-semibold text-sm text-center border border-blue-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-6 text-center text-gray-500">No EB readings found.</td>
-                  </tr>
-                ) : (
-                  paginatedData.map((entry, index) => (
-                    <tr key={entry.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                      <td className="p-3 text-sm text-gray-600">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                      <td className="p-3 font-medium text-gray-800 text-sm">{entry.date}</td>
-                      <td className="p-3 text-sm text-gray-600">{entry.units}</td>
-                      <td className="p-3 font-semibold text-red-600 text-sm">Rs. {entry.amount.toFixed(2)}</td>
-                      <td className="p-3">
-                        <div className="flex justify-center gap-1">
-                          <IonButton fill="clear" size="small" onClick={() => viewEntry(entry)}><IonIcon icon={eyeOutline} slot="icon-only" /></IonButton>
-                          <IonButton fill="clear" size="small" onClick={() => openEditForm(entry)}><IonIcon icon={createOutline} slot="icon-only" /></IonButton>
-                          <IonButton fill="clear" color="danger" size="small" onClick={() => deleteEBReading(entry.id)}><IonIcon icon={trashOutline} slot="icon-only" /></IonButton>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex justify-between items-center mt-4 px-1">
-              <span className="text-sm text-gray-600 font-medium">
-                Showing {(currentPage - 1) * itemsPerPage + (processedData.length > 0 ? 1 : 0)} to {Math.min(currentPage * itemsPerPage, processedData.length)} of {processedData.length}
-              </span>
-              <div className="flex gap-2">
-                <IonButton disabled={currentPage === 1} onClick={() => setCurrentPage(c => c - 1)} size="small" fill="outline" className="text-sm">Prev</IonButton>
-                <IonButton disabled={currentPage === totalPages} onClick={() => setCurrentPage(c => c + 1)} size="small" fill="outline" className="text-sm">Next</IonButton>
-              </div>
-            </div>
-          )}
         </div>
 
+        {/* Styled Circle FAB Add Button */}
         <IonFab slot="fixed" vertical="bottom" horizontal="end" className="add-ticket-fab">
-          <IonFabButton onClick={openAddForm}><IonIcon icon={addOutline} /></IonFabButton>
+          <button
+            onClick={openAddForm}
+            className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg hover:scale-110 active:scale-95 transition-all border-0 outline-none"
+            style={{ backgroundColor: 'var(--theme-primary)' }}
+            title="Add New"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
         </IonFab>
 
+        {/* Form Drawer */}
         <IonModal isOpen={isFormOpen} onDidDismiss={closeForm} className="entry-form-modal">
           <IonHeader className="ion-no-border">
             <IonToolbar>
@@ -262,18 +221,21 @@ const EBReadingTab: React.FC = () => {
               <IonButton slot="end" fill="clear" onClick={closeForm}><IonIcon icon={closeOutline} slot="icon-only" /></IonButton>
             </IonToolbar>
           </IonHeader>
-          <IonContent className="ion-padding ticket-modal-content">
-            <form onSubmit={handleSubmit(onSubmit)} className="entry-form modal-form-panel">
-              <IonInput fill="outline" label="Previous Reading" labelPlacement="floating" type="number" step="0.01" readonly={entries.length > 0 && !editingEntry} {...register('previousReading', { required: true, valueAsNumber: true })} />
-              <IonInput fill="outline" label="Current Reading" labelPlacement="floating" type="number" step="0.01" {...register('currentReading', { required: true, valueAsNumber: true })} />
-              <div className="form-actions">
-                <IonButton fill="outline" type="button" onClick={closeForm}>Cancel</IonButton>
+          <IonContent className="ion-padding ticket-modal-content bg-slate-50">
+            <form onSubmit={handleSubmit(onSubmit)} className="entry-form modal-form-panel p-4 bg-white border border-slate-200/60 rounded-2xl shadow-sm">
+              <div className="space-y-4">
+                <IonInput fill="outline" label="Previous Reading" labelPlacement="floating" type="number" step="0.01" readonly={entries.length > 0 && !editingEntry} {...register('previousReading', { required: true, valueAsNumber: true })} />
+                <IonInput fill="outline" label="Current Reading" labelPlacement="floating" type="number" step="0.01" {...register('currentReading', { required: true, valueAsNumber: true })} />
+              </div>
+              <div className="form-actions mt-6">
+                <button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
                 <IonButton type="submit"><IonIcon icon={checkmarkCircleOutline} slot="start" />Submit</IonButton>
               </div>
             </form>
           </IonContent>
         </IonModal>
 
+        {/* Details View */}
         <IonModal isOpen={!!viewingEntry} onDidDismiss={() => setViewingEntry(null)} breakpoints={[0, 0.6, 1]} initialBreakpoint={0.6}>
           <IonContent className="ion-padding bg-gray-50">
             {viewingEntry && (
@@ -283,7 +245,7 @@ const EBReadingTab: React.FC = () => {
                   <p className="text-gray-500">Recorded on {viewingEntry.date}</p>
                 </div>
                 
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4 text-xs">
                   <div className="flex justify-between border-b pb-3"><span className="text-gray-500">Previous Reading</span><span className="font-bold">{viewingEntry.previousReading}</span></div>
                   <div className="flex justify-between border-b pb-3"><span className="text-gray-500">Current Reading</span><span className="font-bold">{viewingEntry.currentReading}</span></div>
                   <div className="flex justify-between border-b pb-3"><span className="text-gray-500">Units Consumed</span><span className="font-bold text-blue-600">{viewingEntry.units}</span></div>

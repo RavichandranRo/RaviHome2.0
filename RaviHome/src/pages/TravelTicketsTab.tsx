@@ -1,27 +1,22 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   IonButton,
-  IonCard,
-  IonCardContent,
   IonContent,
   IonFab,
-  IonFabButton,
   IonHeader,
   IonIcon,
   IonInput,
   IonModal,
   IonPage,
-  IonSearchbar,
   IonSelect,
   IonSelectOption,
   IonTitle,
   IonToolbar,
   useIonAlert,
-  useIonLoading,
-  useIonToast,
+  useIonLoading
 } from '@ionic/react';
 import {
-  addOutline,
+  add,
   busOutline,
   closeOutline,
   checkmarkCircleOutline,
@@ -32,14 +27,15 @@ import {
   trainOutline,
   trashOutline,
   sparklesOutline,
+  listOutline
 } from 'ionicons/icons';
 import { useForm } from 'react-hook-form';
 import { parseAICommand } from '../utils/aiCommandParser';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import ExportMenu from '../components/ExportMenu';
 import { useAppStore, Ticket } from '../store/useAppStore';
 import { useNotificationStore } from '../store/useNotificationStore';
 import { listenForVoiceInput } from '../utils/voiceInput';
+import PremiumDataGrid, { ColumnDef } from '../components/PremiumDataGrid';
 
 type TicketFormValues = Omit<Ticket, 'id' | 'status'>;
 
@@ -62,6 +58,10 @@ const TravelTicketsTab: React.FC = () => {
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [showFormAI, setShowFormAI] = useState(false);
   const [formAIPrompt, setFormAIPrompt] = useState('');
+  
+  // Custom Tabs State for Travel Tickets
+  const [activeTravelTab, setActiveTravelTab] = useState<'ALL' | 'TRAIN' | 'BUS'>('ALL');
+
   const { register, handleSubmit, reset, setValue } = useForm<TicketFormValues>({ defaultValues: emptyTicket });
   const tickets = useAppStore((state) => state.tickets);
   const addTicket = useAppStore((state) => state.addTicket);
@@ -92,37 +92,11 @@ const TravelTicketsTab: React.FC = () => {
     }
   };
 
-  // Data Grid States
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
-  const processedData = useMemo(() => {
-    let data = [...tickets];
-    if (searchTerm) {
-      data = data.filter(d => d.pnr?.toLowerCase().includes(searchTerm.toLowerCase()) || d.type.toLowerCase().includes(searchTerm.toLowerCase()));
-    }
-    if (sortConfig) {
-      data.sort((a: any, b: any) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return data;
-  }, [tickets, searchTerm, sortConfig]);
-
-  const totalPages = Math.ceil(processedData.length / itemsPerPage);
-  const paginatedData = processedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  const requestSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
+  // Filter based on active Travel sub-tab
+  const filteredTickets = tickets.filter((ticket) => {
+    if (activeTravelTab === 'ALL') return true;
+    return ticket.type === activeTravelTab;
+  });
 
   const openAddForm = () => {
     setEditingTicket(null);
@@ -199,7 +173,6 @@ const TravelTicketsTab: React.FC = () => {
       triggerAnimation(data.type);
       showNotification('success', 'Ticket Saved', `${data.type} ticket saved successfully.`);
     }
-
     closeForm();
   };
 
@@ -304,181 +277,227 @@ const TravelTicketsTab: React.FC = () => {
     }
   };
 
+  // Columns definition
+  const columns: ColumnDef<Ticket>[] = [
+    {
+      key: 'sno',
+      label: 'S.No',
+      render: (_, idx) => <span className="font-bold text-slate-400">{idx + 1}</span>,
+      sortable: false
+    },
+    {
+      key: 'type',
+      label: 'Mode Type',
+      sortable: true,
+      render: (item) => (
+        <div className="flex items-center gap-1.5">
+          <IonIcon icon={item.type === 'BUS' ? busOutline : trainOutline} className="text-sm text-slate-500" />
+          <span className="font-bold text-slate-700">{item.type}</span>
+        </div>
+      )
+    },
+    {
+      key: 'pnr',
+      label: 'PNR Number',
+      render: (item) => <span>{item.pnr || '-'}</span>
+    },
+    {
+      key: 'time',
+      label: 'Departure Time',
+      sortable: true,
+      render: (item) => <span>{new Date(item.time).toLocaleString()}</span>
+    },
+    {
+      key: 'fare',
+      label: 'Fare (Rs)',
+      sortable: true,
+      render: (item) => <span className="font-bold text-slate-700">Rs. {item.fare.toFixed(2)}</span>
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: true,
+      render: (item) => (
+        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          item.status === 'BOOKED' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-500'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${
+            item.status === 'BOOKED' ? 'bg-blue-500' : 'bg-red-500'
+          }`} />
+          {item.status}
+        </span>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (item) => (
+        <div className="flex gap-1">
+          <IonButton fill="clear" size="small" onClick={() => viewTicket(item)}>
+            <IonIcon icon={eyeOutline} slot="icon-only" />
+          </IonButton>
+          <IonButton fill="clear" size="small" onClick={() => openEditForm(item)}>
+            <IonIcon icon={createOutline} slot="icon-only" />
+          </IonButton>
+          {item.type === 'TRAIN' && (
+            <IonButton fill="clear" size="small" title="Check live status" onClick={() => fetchStatus(item.pnr)}>
+              <IonIcon icon={locateOutline} slot="icon-only" />
+            </IonButton>
+          )}
+          <IonButton fill="clear" color="danger" size="small" onClick={() => confirmDelete(item)}>
+            <IonIcon icon={trashOutline} slot="icon-only" />
+          </IonButton>
+        </div>
+      )
+    }
+  ];
+
   return (
     <IonPage>
       <IonHeader className="ion-no-border">
         <IonToolbar className="bg-gray-50">
           <IonTitle><span className="app-page-title">Travel Tickets</span></IonTitle>
-          <div slot="end" className="export-actions">
-            <ExportMenu data={tickets} filename="Tickets" title="Travel Tickets Report" />
-          </div>
         </IonToolbar>
       </IonHeader>
       <IonContent className="ion-padding bg-gray-50">
-        <div className="travel-shell">
-          <div className="section-heading">
-            <h2>Trips</h2>
+        <div className="travel-shell space-y-4">
+          
+          {/* Sub-tabs row styled like grid selector */}
+          <div className="border-b border-slate-200 flex items-center gap-6 text-sm font-bold select-none px-2 mb-2">
+            <button
+              onClick={() => setActiveTravelTab('ALL')}
+              className={`pb-2.5 px-1 relative flex items-center gap-1.5 transition-colors ${
+                activeTravelTab === 'ALL' ? 'text-slate-800 font-black' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <IonIcon icon={listOutline} className="text-base" />
+              All Tickets
+              {activeTravelTab === 'ALL' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" style={{ backgroundColor: 'var(--theme-primary)' }} />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTravelTab('TRAIN')}
+              className={`pb-2.5 px-1 relative flex items-center gap-1.5 transition-colors ${
+                activeTravelTab === 'TRAIN' ? 'text-slate-800 font-black' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <IonIcon icon={trainOutline} className="text-base" />
+              Train Tickets
+              {activeTravelTab === 'TRAIN' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" style={{ backgroundColor: 'var(--theme-primary)' }} />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTravelTab('BUS')}
+              className={`pb-2.5 px-1 relative flex items-center gap-1.5 transition-colors ${
+                activeTravelTab === 'BUS' ? 'text-slate-800 font-black' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <IonIcon icon={busOutline} className="text-base" />
+              Bus Tickets
+              {activeTravelTab === 'BUS' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" style={{ backgroundColor: 'var(--theme-primary)' }} />
+              )}
+            </button>
           </div>
 
-          <IonSearchbar
-            value={searchTerm}
-            onIonInput={(e) => { setSearchTerm(e.detail.value!); setCurrentPage(1); }}
-            placeholder="Search PNR or Type..."
-            className="mb-4 px-0"
+          <PremiumDataGrid
+            data={filteredTickets}
+            columns={columns}
+            searchPlaceholder="Search travel tickets..."
+            searchFields={['type', 'pnr', 'coachNumber', 'seatNumber', 'paidBank', 'paymentMode']}
+            exportFilename="Travel_Tickets_Report"
+            exportTitle="Travel Booking Tickets Statement"
           />
-
-          <div className="overflow-x-auto bg-white rounded-lg shadow border border-gray-100">
-            <table className="w-full text-left border-collapse whitespace-nowrap">
-              <thead className="bg-blue-500 text-white border-b-2 border-blue-600">
-                <tr>
-                  <th className="p-3 font-semibold text-sm border border-blue-600">S.No</th>
-                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('type')}>
-                    Type {sortConfig?.key === 'type' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="p-3 font-semibold text-sm border border-blue-600">PNR</th>
-                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('time')}>
-                    Time {sortConfig?.key === 'time' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('fare')}>
-                    Fare {sortConfig?.key === 'fare' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="p-3 font-semibold text-sm border border-blue-600">Status</th>
-                  <th className="p-3 font-semibold text-sm text-center border border-blue-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-6 text-center text-gray-500">No travel tickets added yet.</td>
-                  </tr>
-                ) : (
-                  paginatedData.map((ticket, index) => (
-                    <tr key={ticket.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                      <td className="p-3 text-sm text-gray-600">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                      <td className="p-3 font-medium text-gray-800 text-sm">
-                        <div className="flex items-center gap-2">
-                          <IonIcon icon={ticket.type === 'BUS' ? busOutline : trainOutline} />
-                          {ticket.type}
-                        </div>
-                      </td>
-                      <td className="p-3 text-sm text-gray-600">{ticket.pnr || '-'}</td>
-                      <td className="p-3 text-sm text-gray-600">{new Date(ticket.time).toLocaleString()}</td>
-                      <td className="p-3 font-semibold text-green-600 text-sm">Rs. {ticket.fare.toFixed(2)}</td>
-                      <td className="p-3 text-sm">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${ticket.status === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {ticket.status}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex justify-center gap-1">
-                          <IonButton fill="clear" size="small" onClick={() => viewTicket(ticket)}><IonIcon icon={eyeOutline} slot="icon-only" /></IonButton>
-                          <IonButton fill="clear" size="small" onClick={() => openEditForm(ticket)}><IonIcon icon={createOutline} slot="icon-only" /></IonButton>
-                          {ticket.type === 'TRAIN' && (
-                            <IonButton fill="clear" size="small" title="Check status" onClick={() => fetchStatus(ticket.pnr)}><IonIcon icon={locateOutline} slot="icon-only" /></IonButton>
-                          )}
-                          <IonButton fill="clear" color="danger" size="small" onClick={() => confirmDelete(ticket)}><IonIcon icon={trashOutline} slot="icon-only" /></IonButton>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex justify-between items-center mt-4 px-1">
-              <span className="text-sm text-gray-600 font-medium">
-                Showing {(currentPage - 1) * itemsPerPage + (processedData.length > 0 ? 1 : 0)} to {Math.min(currentPage * itemsPerPage, processedData.length)} of {processedData.length}
-              </span>
-              <div className="flex gap-2">
-                <IonButton disabled={currentPage === 1} onClick={() => setCurrentPage(c => c - 1)} size="small" fill="outline" className="text-sm">Prev</IonButton>
-                <IonButton disabled={currentPage === totalPages} onClick={() => setCurrentPage(c => c + 1)} size="small" fill="outline" className="text-sm">Next</IonButton>
-              </div>
-            </div>
-          )}
         </div>
 
+        {/* Styled Circle FAB Add Button */}
         <IonFab slot="fixed" vertical="bottom" horizontal="end" className="add-ticket-fab">
-          <IonFabButton onClick={openAddForm} title="Add ticket">
-            <IonIcon icon={addOutline} />
-          </IonFabButton>
+          <button
+            onClick={openAddForm}
+            className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg hover:scale-110 active:scale-95 transition-all border-0 outline-none"
+            style={{ backgroundColor: 'var(--theme-primary)' }}
+            title="Add New"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
         </IonFab>
 
+        {/* Form sliding Drawer */}
         <IonModal isOpen={isFormOpen} onDidDismiss={closeForm} className="ticket-form-modal">
           <IonHeader className="ion-no-border">
-            <IonToolbar className="bg-slate-50">
+            <IonToolbar>
               <IonTitle>{editingTicket ? 'Edit Ticket' : 'Add Ticket'}</IonTitle>
-              <IonButton slot="end" fill="clear" onClick={() => setShowFormAI(!showFormAI)} title="AI Auto-Fill" color="secondary">
-                <IonIcon icon={sparklesOutline} slot="icon-only" className="animate-pulse text-indigo-600" />
+              <IonButton slot="end" fill="clear" onClick={() => setShowFormAI(!showFormAI)} title="AI Auto-Fill">
+                <IonIcon icon={sparklesOutline} slot="icon-only" className="animate-pulse text-indigo-600" style={{ color: 'var(--theme-primary)' }} />
               </IonButton>
-              <IonButton slot="end" fill="clear" onClick={closeForm} title="Close">
-                <IonIcon icon={closeOutline} slot="icon-only" />
-              </IonButton>
+              <IonButton slot="end" fill="clear" onClick={closeForm}><IonIcon icon={closeOutline} slot="icon-only" /></IonButton>
             </IonToolbar>
             {showFormAI && (
               <div className="p-3 bg-indigo-50/70 border-b border-indigo-100 flex gap-2 items-center">
-                <IonInput 
+                <input 
                   placeholder="Say: fare 450 PNR 9876543210 coach B2 seat 12 tomorrow..." 
                   value={formAIPrompt}
-                  onIonInput={(e) => setFormAIPrompt(e.detail.value!)}
-                  className="bg-white border border-indigo-200 rounded-xl px-3 text-xs focus-within:border-indigo-500 w-full"
+                  onChange={(e) => setFormAIPrompt(e.target.value)}
+                  className="bg-white border border-indigo-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 w-full"
                   onKeyDown={(e) => { if (e.key === 'Enter') handleFormAIFill(); }}
                 />
-                <IonButton size="small" className="bg-indigo-600 rounded-xl text-white shadow-sm flex-shrink-0" onClick={handleFormAIFill}>
+                <button className="bg-indigo-600 rounded-xl text-white shadow-sm px-4 py-2 text-xs font-semibold shrink-0" onClick={handleFormAIFill} style={{ backgroundColor: 'var(--theme-primary)' }}>
                   Auto-Fill
-                </IonButton>
+                </button>
               </div>
             )}
           </IonHeader>
-          <IonContent className="ion-padding ticket-modal-content">
-            <form onSubmit={handleSubmit(onSubmit, onError)} className="ticket-form modal-form-panel">
-              <IonSelect fill="outline" label="Type" labelPlacement="floating" {...register('type', { required: true })}>
-                <IonSelectOption value="BUS">Bus</IonSelectOption>
-                <IonSelectOption value="TRAIN">Train</IonSelectOption>
-              </IonSelect>
-              <IonInput fill="outline" label="PNR Number" labelPlacement="floating" {...register('pnr')} />
-              <IonInput fill="outline" label="Travel Time" labelPlacement="floating" type="datetime-local" {...register('time', { required: true })} />
-              <IonInput fill="outline" label="Coach Number" labelPlacement="floating" {...register('coachNumber')} />
-              <IonInput fill="outline" label="Seat Number" labelPlacement="floating" {...register('seatNumber')} />
-              <IonInput fill="outline" label="Seat Type" labelPlacement="floating" {...register('seatType')} />
-              <IonInput fill="outline" label="Fare Amount" labelPlacement="floating" type="number" step="0.01" {...register('fare', { required: true, valueAsNumber: true })}>
-                <IonButton
-                  slot="end"
-                  fill="clear"
-                  type="button"
-                  color={isListening ? 'danger' : 'primary'}
-                  onClick={() => listenForVoiceInput((text) => setValue('seatType', text), setIsListening)}
-                >
-                  <IonIcon icon={micOutline} className={isListening ? 'animate-pulse' : ''} />
-                </IonButton>
-              </IonInput>
-              <IonSelect fill="outline" label="Payment Mode" labelPlacement="floating" {...register('paymentMode')}>
-                <IonSelectOption value="Cash">Cash</IonSelectOption>
-                <IonSelectOption value="UPI">UPI</IonSelectOption>
-                <IonSelectOption value="Card">Card</IonSelectOption>
-                <IonSelectOption value="Net Banking">Net Banking</IonSelectOption>
-              </IonSelect>
-              <IonInput fill="outline" label="Paid Bank" labelPlacement="floating" {...register('paidBank')} />
-              <div className="form-actions">
-                <IonButton fill="outline" type="button" onClick={closeForm}>
-                  Cancel
-                </IonButton>
-                <IonButton type="submit">
-                  <IonIcon icon={checkmarkCircleOutline} slot="start" />
-                  Submit
-                </IonButton>
+          <IonContent className="ion-padding ticket-modal-content bg-slate-50">
+            <form onSubmit={handleSubmit(onSubmit, onError)} className="ticket-form modal-form-panel p-4 bg-white border border-slate-200/60 rounded-2xl shadow-sm">
+              <div className="space-y-4">
+                <IonSelect fill="outline" label="Type" labelPlacement="floating" {...register('type', { required: true })}>
+                  <IonSelectOption value="BUS">Bus</IonSelectOption>
+                  <IonSelectOption value="TRAIN">Train</IonSelectOption>
+                </IonSelect>
+                <IonInput fill="outline" label="PNR Number" labelPlacement="floating" {...register('pnr')} />
+                <IonInput fill="outline" label="Travel Time" labelPlacement="floating" type="datetime-local" {...register('time', { required: true })} />
+                <IonInput fill="outline" label="Coach Number" labelPlacement="floating" {...register('coachNumber')} />
+                <IonInput fill="outline" label="Seat Number" labelPlacement="floating" {...register('seatNumber')} />
+                <IonInput fill="outline" label="Seat Type" labelPlacement="floating" {...register('seatType')} />
+                <IonInput fill="outline" label="Fare Amount" labelPlacement="floating" type="number" step="0.01" {...register('fare', { required: true, valueAsNumber: true })}>
+                  <IonButton
+                    slot="end"
+                    fill="clear"
+                    type="button"
+                    color={isListening ? 'danger' : 'primary'}
+                    onClick={() => listenForVoiceInput((text) => setValue('seatType', text), setIsListening)}
+                  >
+                    <IonIcon icon={micOutline} className={isListening ? 'animate-pulse' : ''} />
+                  </IonButton>
+                </IonInput>
+                <IonSelect fill="outline" label="Payment Mode" labelPlacement="floating" {...register('paymentMode')}>
+                  <IonSelectOption value="Cash">Cash</IonSelectOption>
+                  <IonSelectOption value="UPI">UPI</IonSelectOption>
+                  <IonSelectOption value="Card">Card</IonSelectOption>
+                  <IonSelectOption value="Net Banking">Net Banking</IonSelectOption>
+                </IonSelect>
+                <IonInput fill="outline" label="Paid Bank" labelPlacement="floating" {...register('paidBank')} />
+              </div>
+              <div className="form-actions mt-6">
+                <button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
+                <IonButton type="submit"><IonIcon icon={checkmarkCircleOutline} slot="start" />Submit</IonButton>
               </div>
             </form>
           </IonContent>
         </IonModal>
 
-        {/* View Ticket Bottom Sheet Modal */}
+        {/* View Details bottom sheet modal */}
         <IonModal isOpen={!!viewingTicket} onDidDismiss={() => setViewingTicket(null)} breakpoints={[0, 0.75, 1]} initialBreakpoint={0.75}>
           <IonContent className="ion-padding bg-slate-50">
             {viewingTicket && (
-              <div className="p-3">
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-5 rounded-t-[28px] text-white flex justify-between items-center relative overflow-hidden shadow-lg">
+              <div className="p-3 text-xs">
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-5 rounded-t-[28px] text-white flex justify-between items-center relative overflow-hidden shadow-lg animate-pulse">
                   <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/10" />
                   <div className="flex items-center gap-3">
                     <div className="bg-white/20 p-2.5 rounded-full">
@@ -548,16 +567,14 @@ const TravelTicketsTab: React.FC = () => {
                 </div>
 
                 {viewingTicket.status === 'BOOKED' && (
-                  <IonButton expand="block" color="warning" className="mt-6 rounded-2xl font-bold shadow-md" onClick={() => { setViewingTicket(null); handleCancel(viewingTicket); }}>
+                  <button onClick={() => { setViewingTicket(null); handleCancel(viewingTicket); }} className="w-full mt-6 py-2.5 rounded-xl font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-md active:scale-95 transition-all">
                     Cancel & Process Refund
-                  </IonButton>
+                  </button>
                 )}
               </div>
             )}
           </IonContent>
         </IonModal>
-
-
       </IonContent>
     </IonPage>
   );

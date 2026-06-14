@@ -1,48 +1,61 @@
 import React from 'react';
-import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent } from '@ionic/react';
-import ExportMenu from '../components/ExportMenu';
-import { useAppStore } from '../store/useAppStore';
+import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent } from '@ionic/react';
+import { Task, useAppStore } from '../store/useAppStore';
+import PremiumDataGrid, { ColumnDef } from '../components/PremiumDataGrid';
 
 const CompletedWorksTab: React.FC = () => {
   const allTasks = useAppStore(state => state.tasks);
   const tasks = allTasks.filter(t => t.status === 'COMPLETED');
+
+  const columns: ColumnDef<Task>[] = [
+    {
+      key: 'sno',
+      label: 'S.No',
+      render: (_, idx) => <span className="font-bold text-slate-400">{idx + 1}</span>,
+      sortable: false
+    },
+    {
+      key: 'title',
+      label: 'Task Title',
+      render: (item) => <span className="line-through text-slate-400 font-medium">{item.title}</span>,
+      sortable: true
+    },
+    {
+      key: 'date',
+      label: 'Planned Date',
+      sortable: true
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      sortable: false,
+      render: (item) => (
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
+          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+          {item.status}
+        </span>
+      )
+    }
+  ];
 
   return (
     <IonPage>
       <IonHeader className="ion-no-border">
         <IonToolbar className="bg-gray-50">
           <IonTitle><span className="app-page-title">Completed Works</span></IonTitle>
-          <div slot="end" className="export-actions">
-            <ExportMenu data={tasks} filename="Completed_Tasks" title="Completed Tasks Report" />
-          </div>
         </IonToolbar>
       </IonHeader>
       <IonContent className="ion-padding bg-gray-50">
-       <div className="travel-shell">
-        <div className="flex justify-between items-center mb-6 px-2 mt-4">
-          <h3 className="text-xl font-bold text-gray-700">Completed Tasks</h3>
+        <div className="travel-shell">
+          <PremiumDataGrid
+            data={tasks}
+            columns={columns}
+            searchPlaceholder="Search completed tasks..."
+            searchFields={['title', 'date']}
+            exportFilename="Completed_Tasks_Report"
+            exportTitle="Completed Tasks Report"
+          />
         </div>
-
-        {tasks.length === 0 && (
-           <p className="text-center text-gray-500 mt-10">No completed tasks yet.</p>
-        )}
-
-        <div className="ticket-grid">
-        {tasks.map((task) => (
-          <IonCard key={task.id} className="grid-card border-l-4 border-l-green-500">
-            <IonCardContent className="flex justify-between items-center">
-              <div>
-                <p className="font-bold text-gray-800 line-through">{task.title}</p>
-                <p className="text-sm text-gray-500">Planned Date: {task.date}</p>
-              </div>
-              <div>
-                <span className="text-green-600 font-bold text-sm bg-green-100 px-2 py-1 rounded">COMPLETED</span>
-              </div>
-            </IonCardContent>
-          </IonCard>
-        ))}
-        </div>
-       </div>
       </IonContent>
     </IonPage>
   );

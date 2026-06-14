@@ -1,37 +1,31 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   IonButton,
   IonCard,
   IonCardContent,
   IonContent,
   IonFab,
-  IonFabButton,
   IonHeader,
   IonIcon,
   IonInput,
   IonModal,
   IonPage,
-  IonSegment,
-  IonSegmentButton,
-  IonLabel,
   IonTitle,
   IonToolbar,
-  IonSearchbar,
   IonSpinner,
   IonSelect,
   IonSelectOption,
-  useIonAlert,
-  useIonToast,
+  useIonAlert
 } from '@ionic/react';
-import { addOutline, cameraOutline, checkmarkCircleOutline, closeOutline, createOutline, eyeOutline, micOutline, trashOutline, cloudUploadOutline, sparklesOutline } from 'ionicons/icons';
+import { add, cameraOutline, checkmarkCircleOutline, closeOutline, createOutline, eyeOutline, micOutline, trashOutline, cloudUploadOutline, sparklesOutline } from 'ionicons/icons';
 import { useForm } from 'react-hook-form';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import Tesseract from 'tesseract.js';
-import ExportMenu from '../components/ExportMenu';
 import { useAppStore, Expense } from '../store/useAppStore';
 import { useNotificationStore } from '../store/useNotificationStore';
 import { listenForVoiceInput } from '../utils/voiceInput';
 import { parseAICommand } from '../utils/aiCommandParser';
+import PremiumDataGrid, { ColumnDef } from '../components/PremiumDataGrid';
 
 type ExpenseForm = Omit<Expense, 'id' | 'type'>;
 
@@ -53,12 +47,12 @@ const PaymentTab: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [showFormAI, setShowFormAI] = useState(false);
   const [formAIPrompt, setFormAIPrompt] = useState('');
+  
   const { register, handleSubmit, reset, setValue } = useForm<ExpenseForm>({ defaultValues: emptyExpense });
   const expenses = useAppStore((state) => state.expenses);
   const addExpense = useAppStore((state) => state.addExpense);
   const updateExpense = useAppStore((state) => state.updateExpense);
   const deleteExpense = useAppStore((state) => state.deleteExpense);
-  const [presentToast] = useIonToast();
   const [presentAlert] = useIonAlert();
   const showNotification = useNotificationStore(state => state.showNotification);
   const triggerAnimation = useNotificationStore(state => state.triggerAnimation);
@@ -80,32 +74,7 @@ const PaymentTab: React.FC = () => {
     }
   };
 
-  // Data Grid States
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
   const filteredExpenses = expenses.filter((expense) => expense.type === type);
-
-  const processedData = useMemo(() => {
-    let data = [...filteredExpenses];
-    if (searchTerm) {
-      data = data.filter(e => e.category.toLowerCase().includes(searchTerm.toLowerCase()) || (e.description && e.description.toLowerCase().includes(searchTerm.toLowerCase())));
-    }
-    if (sortConfig) {
-      data.sort((a: any, b: any) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return data;
-  }, [filteredExpenses, searchTerm, sortConfig]);
-
-  const totalPages = Math.ceil(processedData.length / itemsPerPage);
-  const paginatedData = processedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
   const balance = expenses.reduce((acc, curr) => (curr.type === 'CREDIT' ? acc + curr.amount : acc - curr.amount), 0);
 
   const openAddForm = () => {
@@ -132,14 +101,6 @@ const PaymentTab: React.FC = () => {
     setIsFormOpen(false);
     setEditingExpense(null);
     reset(emptyExpense);
-  };
-
-  const requestSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
   };
 
   const applyReceiptText = (text: string) => {
@@ -194,7 +155,6 @@ const PaymentTab: React.FC = () => {
       triggerAnimation(type === 'CREDIT' ? 'PAYMENT_CREDIT' : 'PAYMENT_DEBIT');
       showNotification('success', `${type === 'CREDIT' ? 'Income' : 'Expense'} Logged`, `${data.category}: Rs. ${data.amount} recorded.`);
     }
-
     closeForm();
   };
 
@@ -214,161 +174,192 @@ const PaymentTab: React.FC = () => {
     });
   };
 
+  const columns: ColumnDef<Expense>[] = [
+    {
+      key: 'sno',
+      label: 'S.No',
+      render: (_, idx) => <span className="font-bold text-slate-400">{idx + 1}</span>,
+      sortable: false
+    },
+    {
+      key: 'category',
+      label: 'Category',
+      sortable: true
+    },
+    {
+      key: 'date',
+      label: 'Date',
+      sortable: true
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      render: (item) => <span>{item.description || '-'}</span>
+    },
+    {
+      key: 'amount',
+      label: 'Amount',
+      sortable: true,
+      render: (item) => (
+        <span className={`font-bold ${item.type === 'CREDIT' ? 'text-green-600' : 'text-red-500'}`}>
+          Rs. {item.amount.toLocaleString()}
+        </span>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (item) => (
+        <div className="flex gap-1">
+          <IonButton fill="clear" size="small" onClick={() => viewExpense(item)}>
+            <IonIcon icon={eyeOutline} slot="icon-only" />
+          </IonButton>
+          <IonButton fill="clear" size="small" onClick={() => openEditForm(item)}>
+            <IonIcon icon={createOutline} slot="icon-only" />
+          </IonButton>
+          <IonButton fill="clear" color="danger" size="small" onClick={() => confirmDelete(item)}>
+            <IonIcon icon={trashOutline} slot="icon-only" />
+          </IonButton>
+        </div>
+      )
+    }
+  ];
+
   return (
     <IonPage>
       <IonHeader className="ion-no-border">
         <IonToolbar className="bg-gray-50">
           <IonTitle><span className="app-page-title">Payments</span></IonTitle>
-          <div slot="end" className="export-actions">
-            <ExportMenu data={filteredExpenses} filename="Payments" title="Payments Report" />
-          </div>
         </IonToolbar>
       </IonHeader>
       <IonContent className="ion-padding bg-gray-50">
-        <div className="travel-shell">
-          <IonCard className={`app-card border-t-4 ${balance >= 0 ? 'border-t-green-500' : 'border-t-red-500'}`}>
-            <IonCardContent className="text-center">
-              <p className="text-gray-500 font-semibold">Current Balance</p>
-              <h1 className={`text-4xl font-bold ${balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>Rs. {balance.toFixed(2)}</h1>
+        <div className="travel-shell space-y-6">
+          <IonCard className={`app-card border-t-4 border-slate-200 ${balance >= 0 ? 'border-t-emerald-500' : 'border-t-rose-500'}`}>
+            <IonCardContent className="text-center py-6 bg-white rounded-2xl">
+              <p className="text-slate-400 font-bold uppercase tracking-wider text-xs">Current Balance</p>
+              <h1 className={`text-4xl font-black mt-2 ${balance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                Rs. {balance.toLocaleString()}
+              </h1>
             </IonCardContent>
           </IonCard>
 
-          <IonSegment value={type} mode="ios" onIonChange={(event) => setType(event.detail.value as any)} className="mb-4 bg-gray-200 rounded-full p-1">
-            <IonSegmentButton value="DEBIT"><IonLabel>Expenses</IonLabel></IonSegmentButton>
-            <IonSegmentButton value="CREDIT"><IonLabel>Income</IonLabel></IonSegmentButton>
-          </IonSegment>
-
-          <IonSearchbar
-            value={searchTerm}
-            onIonInput={(e) => { setSearchTerm(e.detail.value!); setCurrentPage(1); }}
-            placeholder="Search entries..."
-            className="mb-4 px-0"
-          />
-
-          <div className="overflow-x-auto bg-white rounded-lg shadow border border-gray-100">
-            <table className="data-grid-table w-full text-left border-collapse whitespace-nowrap">
-              <thead className="bg-blue-500 text-white border-b-2 border-blue-600">
-                <tr>
-                  <th className="p-3 font-semibold text-sm border border-blue-600">S.No</th>
-                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('category')}>
-                    Category {sortConfig?.key === 'category' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('date')}>
-                    Date {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="p-3 font-semibold text-sm border border-blue-600">Description</th>
-                  <th className="p-3 font-semibold text-sm cursor-pointer hover:bg-blue-600 transition-colors border border-blue-600" onClick={() => requestSort('amount')}>
-                    Amount {sortConfig?.key === 'amount' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="p-3 font-semibold text-sm text-center border border-blue-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-6 text-center text-gray-500">No entries found.</td>
-                  </tr>
-                ) : (
-                  paginatedData.map((expense, index) => (
-                    <tr key={expense.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                      <td className="p-3 text-sm text-gray-600">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                      <td className="p-3 font-medium text-gray-800 text-sm">{expense.category}</td>
-                      <td className="p-3 text-sm text-gray-600">{expense.date}</td>
-                      <td className="p-3 text-sm text-gray-600">{expense.description || '-'}</td>
-                      <td className={`p-3 font-semibold text-sm ${expense.type === 'CREDIT' ? 'text-green-600' : 'text-red-600'}`}>Rs. {expense.amount}</td>
-                      <td className="p-3">
-                        <div className="flex justify-center gap-1">
-                          <IonButton fill="clear" size="small" onClick={() => viewExpense(expense)}><IonIcon icon={eyeOutline} slot="icon-only" /></IonButton>
-                          <IonButton fill="clear" size="small" onClick={() => openEditForm(expense)}><IonIcon icon={createOutline} slot="icon-only" /></IonButton>
-                          <IonButton fill="clear" color="danger" size="small" onClick={() => confirmDelete(expense)}><IonIcon icon={trashOutline} slot="icon-only" /></IonButton>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          {/* Sub-tabs row styled like the grids */}
+          <div className="border-b border-slate-200 flex items-center gap-6 text-sm font-bold select-none px-2 mb-4">
+            <button
+              onClick={() => setType('DEBIT')}
+              className={`pb-2.5 px-1 relative transition-colors ${
+                type === 'DEBIT' ? 'text-slate-800 font-black' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              Expenses
+              {type === 'DEBIT' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" style={{ backgroundColor: 'var(--theme-primary)' }} />
+              )}
+            </button>
+            <button
+              onClick={() => setType('CREDIT')}
+              className={`pb-2.5 px-1 relative transition-colors ${
+                type === 'CREDIT' ? 'text-slate-800 font-black' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              Income
+              {type === 'CREDIT' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" style={{ backgroundColor: 'var(--theme-primary)' }} />
+              )}
+            </button>
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex justify-between items-center mt-4 px-1">
-              <span className="text-sm text-gray-600 font-medium">
-                Showing {(currentPage - 1) * itemsPerPage + (processedData.length > 0 ? 1 : 0)} to {Math.min(currentPage * itemsPerPage, processedData.length)} of {processedData.length}
-              </span>
-              <div className="flex gap-2">
-                <IonButton disabled={currentPage === 1} onClick={() => setCurrentPage(c => c - 1)} size="small" fill="outline" className="text-sm">Prev</IonButton>
-                <IonButton disabled={currentPage === totalPages} onClick={() => setCurrentPage(c => c + 1)} size="small" fill="outline" className="text-sm">Next</IonButton>
-              </div>
-            </div>
-          )}
+          <PremiumDataGrid
+            data={filteredExpenses}
+            columns={columns}
+            searchPlaceholder="Search payment category or description..."
+            searchFields={['category', 'description', 'amount', 'date', 'paymentMode', 'paidBank']}
+            exportFilename={`${type === 'CREDIT' ? 'Income' : 'Expenses'}_Report`}
+            exportTitle={`${type === 'CREDIT' ? 'Income' : 'Expenses'} Statement`}
+          />
         </div>
 
+        {/* Styled Circle FAB Add Button */}
         <IonFab slot="fixed" vertical="bottom" horizontal="end" className="add-ticket-fab">
-          <IonFabButton onClick={openAddForm} title="Add payment"><IonIcon icon={addOutline} /></IonFabButton>
+          <button
+            onClick={openAddForm}
+            className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg hover:scale-110 active:scale-95 transition-all border-0 outline-none"
+            style={{ backgroundColor: 'var(--theme-primary)' }}
+            title="Add New"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </button>
         </IonFab>
 
+        {/* Form sliding Drawer */}
         <IonModal isOpen={isFormOpen} onDidDismiss={closeForm} className="entry-form-modal">
           <IonHeader className="ion-no-border">
-            <IonToolbar className="bg-slate-50">
+            <IonToolbar>
               <IonTitle>{editingExpense ? 'Edit Entry' : 'Add Entry'}</IonTitle>
               <IonButton slot="end" fill="clear" onClick={() => setShowFormAI(!showFormAI)} title="AI Auto-Fill">
-                <IonIcon icon={sparklesOutline} slot="icon-only" className="animate-pulse text-indigo-600" />
+                <IonIcon icon={sparklesOutline} slot="icon-only" className="animate-pulse text-indigo-600" style={{ color: 'var(--theme-primary)' }} />
               </IonButton>
               <IonButton slot="end" fill="clear" onClick={closeForm}><IonIcon icon={closeOutline} slot="icon-only" /></IonButton>
             </IonToolbar>
             {showFormAI && (
               <div className="p-3 bg-indigo-50/70 border-b border-indigo-100 flex gap-2 items-center">
-                <IonInput 
+                <input 
                   placeholder="Say: spent 350 for dinner on UPI today..." 
                   value={formAIPrompt}
-                  onIonInput={(e) => setFormAIPrompt(e.detail.value!)}
-                  className="bg-white border border-indigo-200 rounded-xl px-3 text-xs focus-within:border-indigo-500 w-full"
+                  onChange={(e) => setFormAIPrompt(e.target.value)}
+                  className="bg-white border border-indigo-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 w-full"
                   onKeyDown={(e) => { if (e.key === 'Enter') handleFormAIFill(); }}
                 />
-                <IonButton size="small" className="bg-indigo-600 rounded-xl text-white shadow-sm flex-shrink-0" onClick={handleFormAIFill}>
+                <button className="bg-indigo-600 rounded-xl text-white shadow-sm px-4 py-2 text-xs font-semibold shrink-0" onClick={handleFormAIFill} style={{ backgroundColor: 'var(--theme-primary)' }}>
                   Auto-Fill
-                </IonButton>
+                </button>
               </div>
             )}
           </IonHeader>
-          <IonContent className="ion-padding ticket-modal-content">
-            <form onSubmit={handleSubmit(onSubmit, onError)} className="entry-form modal-form-panel">
+          <IonContent className="ion-padding ticket-modal-content bg-slate-50">
+            <form onSubmit={handleSubmit(onSubmit, onError)} className="entry-form modal-form-panel p-4 bg-white border border-slate-200/60 rounded-2xl shadow-sm">
               {type === 'DEBIT' && (
-                <div className="bill-upload">
-                  <IonButton type="button" fill="outline" onClick={scanReceipt} disabled={isScanning}>
-                    {isScanning ? <IonSpinner name="dots" /> : <IonIcon icon={cameraOutline} slot="start" />}
-                    Scan Bill
-                  </IonButton>
-                  <label className="text-sm font-semibold text-gray-600">
-                    <IonIcon icon={cloudUploadOutline} /> Upload bill image
-                    <input type="file" accept="image/*" onChange={uploadBill} className="block mt-2 text-sm" />
+                <div className="bill-upload mb-4">
+                  <button type="button" onClick={scanReceipt} disabled={isScanning} className="w-full py-2.5 rounded-xl border border-slate-200/80 bg-slate-50 hover:bg-slate-100 flex items-center justify-center gap-1.5 text-slate-600 text-xs font-bold transition-colors">
+                    {isScanning ? <IonSpinner name="dots" /> : <IonIcon icon={cameraOutline} />}
+                    Scan Bill Receipt
+                  </button>
+                  <label className="text-xs font-bold text-slate-500 flex flex-col gap-1.5 mt-3 select-none">
+                    <span>Or Upload Bill File</span>
+                    <input type="file" accept="image/*" onChange={uploadBill} className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 file:cursor-pointer cursor-pointer" />
                   </label>
                 </div>
               )}
-              <IonInput fill="outline" label="Category" labelPlacement="floating" {...register('category', { required: true })}>
-                <IonButton slot="end" fill="clear" type="button" color={isListening ? 'danger' : 'primary'} onClick={() => listenForVoiceInput((text) => setValue('category', text), setIsListening)}>
-                  <IonIcon icon={micOutline} className={isListening ? 'animate-pulse' : ''} />
-                </IonButton>
-              </IonInput>
-              <IonInput fill="outline" label="Description" labelPlacement="floating" {...register('description')} />
-              <IonInput fill="outline" label="Amount" labelPlacement="floating" type="number" step="0.01" {...register('amount', { required: true, valueAsNumber: true })} />
-              <IonInput fill="outline" label="Date" labelPlacement="floating" type="date" {...register('date', { required: true })} />
-              <IonSelect fill="outline" label="Payment Mode" labelPlacement="floating" {...register('paymentMode')}>
-                <IonSelectOption value="Cash">Cash</IonSelectOption>
-                <IonSelectOption value="UPI">UPI</IonSelectOption>
-                <IonSelectOption value="Card">Card</IonSelectOption>
-                <IonSelectOption value="Net Banking">Net Banking</IonSelectOption>
-              </IonSelect>
-              <IonInput fill="outline" label="Paid Bank" labelPlacement="floating" {...register('paidBank')} />
-              <div className="form-actions">
-                <IonButton fill="outline" type="button" onClick={closeForm}>Cancel</IonButton>
+              <div className="space-y-4">
+                <IonInput fill="outline" label="Category" labelPlacement="floating" {...register('category', { required: true })}>
+                  <IonButton slot="end" fill="clear" type="button" color={isListening ? 'danger' : 'primary'} onClick={() => listenForVoiceInput((text) => setValue('category', text), setIsListening)}>
+                    <IonIcon icon={micOutline} className={isListening ? 'animate-pulse' : ''} />
+                  </IonButton>
+                </IonInput>
+                <IonInput fill="outline" label="Description" labelPlacement="floating" {...register('description')} />
+                <IonInput fill="outline" label="Amount" labelPlacement="floating" type="number" step="0.01" {...register('amount', { required: true, valueAsNumber: true })} />
+                <IonInput fill="outline" label="Date" labelPlacement="floating" type="date" {...register('date', { required: true })} />
+                <IonSelect fill="outline" label="Payment Mode" labelPlacement="floating" {...register('paymentMode')}>
+                  <IonSelectOption value="Cash">Cash</IonSelectOption>
+                  <IonSelectOption value="UPI">UPI</IonSelectOption>
+                  <IonSelectOption value="Card">Card</IonSelectOption>
+                  <IonSelectOption value="Net Banking">Net Banking</IonSelectOption>
+                </IonSelect>
+                <IonInput fill="outline" label="Paid Bank" labelPlacement="floating" {...register('paidBank')} />
+              </div>
+              <div className="form-actions mt-6">
+                <button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
                 <IonButton type="submit"><IonIcon icon={checkmarkCircleOutline} slot="start" />Submit</IonButton>
               </div>
             </form>
           </IonContent>
         </IonModal>
 
-        {/* View Expense Bottom Sheet Modal */}
+        {/* View Details Modal */}
         <IonModal isOpen={!!viewingExpense} onDidDismiss={() => setViewingExpense(null)} breakpoints={[0, 0.65, 1]} initialBreakpoint={0.65}>
           <IonContent className="ion-padding bg-slate-50">
             {viewingExpense && (
@@ -383,7 +374,7 @@ const PaymentTab: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="bg-white p-5 rounded-b-3xl border-x border-b border-slate-200/50 space-y-4 shadow-sm relative">
+                <div className="bg-white p-5 rounded-b-3xl border-x border-b border-slate-200/50 space-y-4 shadow-sm relative text-xs">
                   <div className="flex justify-between border-b pb-3 items-center">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Transaction Amount</span>
                     <span className={`font-black text-2xl ${viewingExpense.type === 'CREDIT' ? 'text-green-600' : 'text-red-600'}`}>
@@ -409,8 +400,6 @@ const PaymentTab: React.FC = () => {
             )}
           </IonContent>
         </IonModal>
-
-
       </IonContent>
     </IonPage>
   );

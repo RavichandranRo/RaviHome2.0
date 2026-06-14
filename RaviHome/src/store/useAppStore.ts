@@ -71,6 +71,12 @@ interface AppState {
   ebReadings: EBReading[];
   auditLogs: AuditLog[];
   theme: 'light' | 'dark';
+  themeColor: 'indigo' | 'teal' | 'green' | 'blue' | 'orange' | 'purple' | 'pink' | 'amber';
+  recordsPerPage: number;
+  defaultTab: string;
+  timeZone: string;
+  mapLayers: string;
+  testLampInterval: number;
   addExpense: (expense: Omit<Expense, 'id'>) => void;
   updateExpense: (id: string, expense: Omit<Expense, 'id'>) => void;
   deleteExpense: (id: string) => void;
@@ -89,6 +95,8 @@ interface AppState {
   updateDeposit: (id: string, deposit: Omit<Deposit, 'id'>) => void;
   deleteDeposit: (id: string) => void;
   setTheme: (theme: 'light' | 'dark') => void;
+  setThemeColor: (color: 'indigo' | 'teal' | 'green' | 'blue' | 'orange' | 'purple' | 'pink' | 'amber') => void;
+  updatePreferences: (prefs: Partial<{ recordsPerPage: number; defaultTab: string; timeZone: string; mapLayers: string; testLampInterval: number }>) => void;
   addAuditLog: (action: string) => void;
   archiveAndPurgeAuditLogs: (daysToKeep?: number) => Promise<string | void>;
   processAutoRenewals: () => void;
@@ -103,6 +111,29 @@ export const useAppStore = create<AppState>()(
     ebReadings: [],
     auditLogs: [],
     theme: 'light',
+    themeColor: 'indigo',
+    recordsPerPage: 50,
+    defaultTab: 'Dashboard',
+    timeZone: 'Client Timezone',
+    mapLayers: 'RoadMap',
+    testLampInterval: 5,
+    setThemeColor: (themeColor) =>
+      set((state) => ({
+        themeColor,
+        auditLogs: [
+          { id: Math.random().toString(36).substr(2, 9), action: `Theme color changed to ${themeColor}`, date: new Date().toLocaleString() },
+          ...state.auditLogs,
+        ],
+      })),
+    updatePreferences: (prefs) =>
+      set((state) => ({
+        ...state,
+        ...prefs,
+        auditLogs: [
+          { id: Math.random().toString(36).substr(2, 9), action: `Preferences updated`, date: new Date().toLocaleString() },
+          ...state.auditLogs,
+        ],
+      })),
     addAuditLog: (action) =>
       set((state) => ({
         auditLogs: [

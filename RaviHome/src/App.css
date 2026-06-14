@@ -1,3 +1,60 @@
+:root {
+  --theme-primary: #6366f1; /* default indigo */
+  --theme-primary-hover: #4f46e5;
+  --theme-header-bg: #6366f1;
+  --theme-header-text: #ffffff;
+  --theme-accent: #6366f1;
+}
+
+[data-theme-color="indigo"] {
+  --theme-primary: #6366f1;
+  --theme-primary-hover: #4f46e5;
+  --theme-header-bg: #6366f1;
+  --theme-accent: #6366f1;
+}
+[data-theme-color="teal"] {
+  --theme-primary: #14b8a6;
+  --theme-primary-hover: #0d9488;
+  --theme-header-bg: #14b8a6;
+  --theme-accent: #14b8a6;
+}
+[data-theme-color="green"] {
+  --theme-primary: #10b981;
+  --theme-primary-hover: #059669;
+  --theme-header-bg: #10b981;
+  --theme-accent: #10b981;
+}
+[data-theme-color="blue"] {
+  --theme-primary: #2196f3;
+  --theme-primary-hover: #1e88e5;
+  --theme-header-bg: #2196f3;
+  --theme-accent: #2196f3;
+}
+[data-theme-color="orange"] {
+  --theme-primary: #f57c00;
+  --theme-primary-hover: #e65100;
+  --theme-header-bg: #f57c00;
+  --theme-accent: #f57c00;
+}
+[data-theme-color="purple"] {
+  --theme-primary: #9c27b0;
+  --theme-primary-hover: #7b1fa2;
+  --theme-header-bg: #9c27b0;
+  --theme-accent: #9c27b0;
+}
+[data-theme-color="pink"] {
+  --theme-primary: #ec4899;
+  --theme-primary-hover: #db2777;
+  --theme-header-bg: #ec4899;
+  --theme-accent: #ec4899;
+}
+[data-theme-color="amber"] {
+  --theme-primary: #f59e0b;
+  --theme-primary-hover: #d97706;
+  --theme-header-bg: #f59e0b;
+  --theme-accent: #f59e0b;
+}
+
 html {
   --app-surface: #f7fafc;
   --app-card: #ffffff;
@@ -21,41 +78,49 @@ html.app-dark ion-toolbar {
 }
 
 .app-sidebar-tabs {
-  --background: var(--app-card);
+  --background: #111827; /* Dark background */
   position: fixed;
-  inset: 0 auto 0 0;
+  inset: 64px auto 0 0;
   z-index: 20;
   display: flex;
   flex-direction: column;
   width: 104px;
   min-width: 104px;
-  height: 100%;
-  border-right: 1px solid var(--app-border);
+  height: calc(100% - 64px);
+  border-right: 1px solid #1f2937;
   border-top: 0;
   box-shadow: 8px 0 24px rgba(15, 23, 42, 0.06);
-  padding: 12px 8px;
+  padding: 24px 8px;
   transition: width 220ms ease, box-shadow 220ms ease, background-color 220ms ease;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.app-sidebar-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .app-vertical-tabs ion-router-outlet {
+  top: 64px;
   left: 104px;
   width: calc(100% - 104px);
   min-width: 0;
-  height: 100%;
+  height: calc(100% - 64px);
 }
 
 .app-sidebar-tabs ion-tab-button {
-  --color: #64748b;
-  --color-selected: #2563eb;
-  --background-focused: rgba(37, 99, 235, 0.08);
-  border-radius: 14px;
-  height: 74px;
-  margin: 3px 0;
+  --color: #9ca3af;
+  --color-selected: var(--theme-primary);
+  --background-focused: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  height: 72px;
+  margin: 6px 0;
+  background: transparent;
   transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
 .app-sidebar-tabs ion-tab-button.tab-selected {
-  background: rgba(37, 99, 235, 0.1);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .app-sidebar-tabs ion-tab-button:hover {
@@ -63,12 +128,42 @@ html.app-dark ion-toolbar {
 }
 
 .app-sidebar-tabs ion-icon {
-  font-size: 22px;
+  font-size: 24px;
 }
 
 .app-sidebar-tabs ion-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
+  margin-top: 4px;
+}
+
+/* Header/Top Navigation Bar styling */
+.top-header-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 64px;
+  background-color: var(--theme-header-bg);
+  color: var(--theme-header-text);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Active UI highlights and dynamic buttons overrides */
+ion-button.theme-btn {
+  --background: var(--theme-primary);
+  --background-hover: var(--theme-primary-hover);
+}
+.theme-text {
+  color: var(--theme-primary);
+}
+.theme-border {
+  border-color: var(--theme-primary);
 }
 
 .app-card {
@@ -355,7 +450,7 @@ html.app-dark ion-toolbar {
   }
 }
 .data-grid-table thead.data-grid-header {
-  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  background: var(--theme-primary);
   color: #ffffff;
   border-bottom: 0;
 }
@@ -370,6 +465,143 @@ html.app-dark ion-toolbar {
   border-right: 0;
 }
 
-.data-grid-table thead.data-grid-header th.cursor-pointer:hover {
-  background: rgba(255, 255, 255, 0.16);
+/* Premium corporate table overrides matching Image 1 list tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead {
+  background-color: var(--theme-primary) !important;
+  color: #ffffff !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+th {
+  padding: 14px 18px !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+  letter-spacing: 0.05em;
+}
+
+td {
+  padding: 14px 18px !important;
+  border: none !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #334155 !important;
+  font-size: 13px !important;
+}
+
+tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+
+/* Right-sliding modal drawer overrides */
+ion-modal.entry-form-modal,
+ion-modal.ticket-form-modal {
+  --width: 420px;
+  --height: 100%;
+  --border-radius: 0px;
+  --max-height: 100%;
+  --box-shadow: -4px 0 24px rgba(0, 0, 0, 0.08);
+}
+
+ion-modal.entry-form-modal::part(content),
+ion-modal.ticket-form-modal::part(content) {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: auto !important;
+  width: 420px;
+  height: 100vh;
+  border-radius: 0px;
+  border-left: 1px solid var(--app-border);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.05);
+}
+
+.ticket-modal-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Form panel resets */
+.modal-form-panel {
+  border: none !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Select, input element styles inside drawer */
+.entry-form ion-input,
+.entry-form ion-select,
+.ticket-form ion-input,
+.ticket-form ion-select {
+  --border-radius: 12px;
+  --border-color: #cbd5e1;
+  --background: #ffffff;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.form-actions {
+  border-top: 1px solid #f1f5f9 !important;
+  padding-top: 16px !important;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+/* Checkbox overrides */
+ion-checkbox {
+  --checkmark-color: #ffffff;
+  --checkbox-background-checked: var(--theme-primary) !important;
+  --border-color-checked: var(--theme-primary) !important;
+}
+
+/* FAB button styles */
+ion-fab-button {
+  --background: var(--theme-primary) !important;
+  --background-hover: var(--theme-primary-hover) !important;
+  --color: #ffffff !important;
+  box-shadow: 0 4px 14px var(--theme-primary);
+}
+
+/* Main buttons overrides */
+ion-button:not([color]) {
+  --background: var(--theme-primary) !important;
+  --background-hover: var(--theme-primary-hover) !important;
+  --background-activated: var(--theme-primary-hover) !important;
+  --background-focused: var(--theme-primary-hover) !important;
+  --color: #ffffff !important;
+}
+
+ion-button[fill="outline"]:not([color]) {
+  --background: transparent !important;
+  --color: var(--theme-primary) !important;
+  --border-color: var(--theme-primary) !important;
+}
+
+ion-button[fill="clear"]:not([color]) {
+  --background: transparent !important;
+  --color: var(--theme-primary) !important;
+}
+
+/* Search bar styling */
+ion-searchbar {
+  --background: #ffffff !important;
+  --border-radius: 12px !important;
+  --box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid var(--app-border) !important;
+  border-radius: 12px !important;
+  padding: 0 !important;
+  margin-bottom: 16px !important;
 }

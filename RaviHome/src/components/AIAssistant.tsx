@@ -69,24 +69,6 @@ const AIAssistant: React.FC = () => {
 
   return (
     <>
-      {/* Floating Sparkles Trigger Button */}
-      <div className="fixed bottom-20 left-4 z-[999]">
-        <motion.button
-          whileHover={{ scale: 1.15 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setAssistantOpen(true)}
-          className="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-500 to-purple-600 border-2 border-white/40 shadow-2xl flex items-center justify-center text-white relative overflow-hidden"
-        >
-          {/* Pulsing glow */}
-          <motion.div
-            animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.6, 0.3] }}
-            transition={{ repeat: Infinity, duration: 2 }}
-            className="absolute inset-0 bg-indigo-400 rounded-full"
-          />
-          <IonIcon icon={sparklesOutline} className="text-2xl relative z-10 animate-pulse" />
-        </motion.button>
-      </div>
-
       {/* AI Assistant Sheet Drawer */}
       <AnimatePresence>
         {isAssistantOpen && (

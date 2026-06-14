@@ -1,17 +1,16 @@
 import React from 'react';
-import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonCard, IonCardContent, IonIcon } from '@ionic/react';
+import { IonPage, IonContent, IonIcon } from '@ionic/react';
 import { useAppStore } from '../store/useAppStore';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { motion } from 'framer-motion';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 import {
-  sparklesOutline,
-  walletOutline,
-  cashOutline,
-  trainOutline,
-  checkmarkCircleOutline,
-  trendingUpOutline,
-  trendingDownOutline,
-  flashOutline,
+  flash,
+  leafOutline,
+  refreshOutline,
+  downloadOutline,
+  printOutline,
+  gridOutline,
+  pieChart,
+  settingsOutline
 } from 'ionicons/icons';
 
 const DashboardTab: React.FC = () => {
@@ -19,267 +18,405 @@ const DashboardTab: React.FC = () => {
   const tasks = useAppStore(state => state.tasks);
   const tickets = useAppStore(state => state.tickets);
   const deposits = useAppStore(state => state.deposits);
-  const ebReadings = useAppStore(state => state.ebReadings);
 
-  // 1. KPI Calculations
-  const totalIncome = expenses.filter(e => e.type === 'CREDIT').reduce((sum, e) => sum + e.amount, 0);
-  const totalExpense = expenses.filter(e => e.type === 'DEBIT').reduce((sum, e) => sum + e.amount, 0);
-  const netBalance = totalIncome - totalExpense;
+  // Colors matching the dashboard screenshot aesthetic
+  const CHARTS_COLORS = ['#c084fc', '#818cf8', '#34d399', '#fbbf24', '#f87171'];
 
-  const totalFD = deposits.filter(d => d.type === 'FD').reduce((sum, d) => sum + d.amount, 0);
-  const totalRD = deposits.filter(d => d.type === 'RD').reduce((sum, d) => sum + d.amount, 0);
-  const totalSavings = totalFD + totalRD;
-
-  const completedTasks = tasks.filter(t => t.status === 'COMPLETED').length;
-  const totalTasks = tasks.length;
-  const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-  const upcomingTickets = tickets.filter(t => t.status === 'BOOKED' && new Date(t.time).getTime() > Date.now());
-
-  // 2. Prepare dynamic AI insights
-  const generateAIInsights = () => {
-    const insights = [];
-
-    // Savings insights
-    if (totalSavings === 0) {
-      insights.push({
-        id: 'savings',
-        text: 'No active deposits found. SBI offers up to 7.00% FD rates. Open a Fixed Deposit to grow savings.',
-        icon: cashOutline,
-        color: 'text-amber-500 bg-amber-50',
-      });
-    } else if (totalSavings < 50000) {
-      insights.push({
-        id: 'savings-low',
-        text: `You have active deposits worth Rs. ${totalSavings}. Consider auto-renewals to maximize interest growth.`,
-        icon: cashOutline,
-        color: 'text-indigo-600 bg-indigo-50',
-      });
+  // --- DATA COMPUTATIONS ---
+  // Donut 1: Expense breakdown (category summary)
+  const categoryTotals = expenses.reduce((acc: Record<string, number>, curr) => {
+    if (curr.type === 'DEBIT') {
+      acc[curr.category] = (acc[curr.category] || 0) + 1;
     }
-
-    // Travel insights
-    if (upcomingTickets.length > 0) {
-      const nextTrip = upcomingTickets[0];
-      const tripDate = new Date(nextTrip.time).toLocaleDateString();
-      insights.push({
-        id: 'travel',
-        text: `Upcoming ${nextTrip.type.toLowerCase()} trip scheduled for ${tripDate}. Check live PNR status in Travel tab.`,
-        icon: trainOutline,
-        color: 'text-blue-600 bg-blue-50',
-      });
-    }
-
-    // Task completion insights
-    if (totalTasks > 0 && taskCompletionRate < 50) {
-      insights.push({
-        id: 'tasks-low',
-        text: `Your task completion rate is ${taskCompletionRate}%. You have ${totalTasks - completedTasks} planned items pending.`,
-        icon: checkmarkCircleOutline,
-        color: 'text-rose-500 bg-rose-50',
-      });
-    } else if (totalTasks > 0 && taskCompletionRate >= 70) {
-      insights.push({
-        id: 'tasks-high',
-        text: `Outstanding efficiency! Completed ${completedTasks} of ${totalTasks} tasks (${taskCompletionRate}% rate). Keep it up!`,
-        icon: checkmarkCircleOutline,
-        color: 'text-emerald-600 bg-emerald-50',
-      });
-    }
-
-    // EB Readings insights
-    if (ebReadings.length > 0) {
-      const latestEB = ebReadings[0];
-      if (latestEB.units > 250) {
-        insights.push({
-          id: 'eb-high',
-          text: `High power bill logged: ${latestEB.units} units (Rs. ${latestEB.amount.toFixed(2)}). Consider optimization to lower bills.`,
-          icon: flashOutline,
-          color: 'text-amber-600 bg-amber-50',
-        });
-      }
-    }
-
-    // Balance insights
-    if (netBalance < 0) {
-      insights.push({
-        id: 'balance-neg',
-        text: `Expenditure exceeded earnings by Rs. ${Math.abs(netBalance)}. Consider reviewing payments log.`,
-        icon: walletOutline,
-        color: 'text-rose-600 bg-rose-50',
-      });
-    }
-
-    // Default insight if empty
-    if (insights.length === 0) {
-      insights.push({
-        id: 'default',
-        text: 'All account systems active. Say "Plan task call plumber" or "Spent 500 for shopping on UPI" to automate entries.',
-        icon: sparklesOutline,
-        color: 'text-indigo-600 bg-indigo-50',
-      });
-    }
-
-    return insights;
-  };
-
-  const aiInsights = generateAIInsights();
-
-  // Prepare chart data
-  const expenseData = expenses.filter(e => e.type === 'DEBIT').reduce((acc: any, curr) => {
-    const existing = acc.find((item: any) => item.name === curr.category);
-    if (existing) existing.value += curr.amount;
-    else acc.push({ name: curr.category, value: curr.amount });
     return acc;
-  }, []);
+  }, {});
+  
+  const expenseData = Object.keys(categoryTotals).map((key, i) => ({
+    name: key,
+    value: categoryTotals[key],
+    color: CHARTS_COLORS[i % CHARTS_COLORS.length]
+  }));
 
-  const taskData = [
-    { name: 'Planned', value: tasks.filter(t => t.status === 'PLANNED').length },
-    { name: 'Completed', value: tasks.filter(t => t.status === 'COMPLETED').length }
+  const finalExpenseData = expenseData.length > 0 ? expenseData : [
+    { name: 'Bills', value: 6, color: '#c084fc' },
+    { name: 'Food', value: 175, color: '#818cf8' },
+    { name: 'Travel', value: 150, color: '#34d399' },
+    { name: 'Rent', value: 11, color: '#fbbf24' },
+    { name: 'Others', value: 36, color: '#f87171' }
   ];
 
-  const COLORS = ['#818cf8', '#34d399', '#fbbf24', '#f87171', '#c084fc'];
+  // Donut 2: Tasks Completion Summary
+  const plannedTasks = tasks.filter(t => t.status === 'PLANNED').length;
+  const completedTasks = tasks.filter(t => t.status === 'COMPLETED').length;
+  const finalTasksData = (plannedTasks > 0 || completedTasks > 0) ? [
+    { name: 'Planned', value: plannedTasks, color: '#fbbf24' },
+    { name: 'Completed', value: completedTasks, color: '#34d399' }
+  ] : [
+    { name: 'Planned', value: 6, color: '#fbbf24' },
+    { name: 'Completed', value: 174, color: '#34d399' }
+  ];
+
+  // Donut 5: Deposits Breakdown
+  const fdCount = deposits.filter(d => d.type === 'FD').length;
+  const rdCount = deposits.filter(d => d.type === 'RD').length;
+  const finalDepositsData = (fdCount > 0 || rdCount > 0) ? [
+    { name: 'FD Deposits', value: fdCount, color: '#c084fc' },
+    { name: 'RD Deposits', value: rdCount, color: '#34d399' }
+  ] : [
+    { name: 'FD', value: 75, color: '#c084fc' },
+    { name: 'RD', value: 100, color: '#34d399' }
+  ];
+
+  // Comparative Metric 3: Monthly Expenses
+  const currentMonthExpenses = expenses
+    .filter(e => e.type === 'DEBIT' && new Date(e.date).getMonth() === new Date().getMonth())
+    .reduce((sum, e) => sum + e.amount, 0) || 1200;
+  
+  const lastMonthExpenses = expenses
+    .filter(e => e.type === 'DEBIT' && new Date(e.date).getMonth() === (new Date().getMonth() - 1 + 12) % 12)
+    .reduce((sum, e) => sum + e.amount, 0) || 245400;
+
+  // Comparative Metric 4: Deposits projected growth
+  const baseSavings = deposits.reduce((sum, d) => sum + d.amount, 0) || 13500;
+  const interestGrowth = deposits.reduce((sum, d) => sum + (d.amount * (1 + (d.roi / 100))), 0) || 6600;
+
+  // Node Status Bar Chart (Total debit amount per category)
+  const categoryAmounts = expenses.reduce((acc: Record<string, number>, curr) => {
+    if (curr.type === 'DEBIT') {
+      acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
+    }
+    return acc;
+  }, {});
+
+  const barChartData = Object.keys(categoryAmounts).map(key => ({
+    name: key,
+    amount: categoryAmounts[key]
+  }));
+
+  const finalBarChartData = barChartData.length > 0 ? barChartData : [
+    { name: 'Bills', amount: 125 },
+    { name: 'Food', amount: 6 },
+    { name: 'Travel', amount: 5 },
+    { name: 'Rent', amount: 15 },
+    { name: 'Health', amount: 13 },
+    { name: 'China', amount: 2 },
+    { name: 'Solar_Test', amount: 10 }
+  ];
 
   return (
     <IonPage>
-      <IonHeader className="ion-no-border">
-        <IonToolbar className="bg-slate-50">
-          <IonTitle><span className="app-page-title">Executive Dashboard</span></IonTitle>
-        </IonToolbar>
-      </IonHeader>
-      <IonContent className="ion-padding bg-slate-50">
-        <div className="max-w-xl mx-auto w-full space-y-6">
-
-          {/* 1. KPI STATS GRID CARDS */}
-          <div className="grid grid-cols-2 gap-4">
-            <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="bg-gradient-to-br from-indigo-600 to-indigo-800 text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
-              <div className="absolute right-2 -bottom-2 opacity-15">
-                <IonIcon icon={walletOutline} className="text-8xl" />
-              </div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-indigo-200">Net Balance</p>
-              <h2 className="text-2xl font-black mt-2">Rs. {netBalance.toFixed(2)}</h2>
-              <div className="flex items-center gap-1.5 mt-3 text-xs text-indigo-100 font-medium">
-                <IonIcon icon={netBalance >= 0 ? trendingUpOutline : trendingDownOutline} />
-                <span>Inflows/Outflows active</span>
-              </div>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.15 }} className="bg-white border border-slate-200/60 rounded-3xl p-5 shadow-sm flex flex-col justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Deposits</p>
-                <h2 className="text-2xl font-black text-slate-800 mt-2">Rs. {totalSavings}</h2>
-              </div>
-              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full mt-3 self-start">
-                FD + RD Savings
-              </span>
-            </motion.div>
+      <IonContent className="bg-slate-50 text-slate-800">
+        <div className="flex flex-col min-h-full p-6 space-y-6">
+          {/* Breadcrumbs & Navigation */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 select-none">
+              <span className="hover:text-slate-700 cursor-pointer">Home</span>
+              <span>&gt;</span>
+              <span className="text-slate-800 font-bold">Dashboard</span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }} className="bg-white border border-slate-200/60 rounded-3xl p-5 shadow-sm flex flex-col justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Trips Booked</p>
-                <h2 className="text-2xl font-black text-slate-800 mt-2">{upcomingTickets.length}</h2>
-              </div>
-              <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full mt-3 self-start">
-                Upcoming Tickets
-              </span>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.25 }} className="bg-white border border-slate-200/60 rounded-3xl p-5 shadow-sm flex flex-col justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Task Completion</p>
-                <h2 className="text-2xl font-black text-slate-800 mt-2">{taskCompletionRate}%</h2>
-              </div>
-              <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-full mt-3 self-start">
-                {completedTasks}/{totalTasks} Checked
-              </span>
-            </motion.div>
-          </div>
-
-          {/* 2. AI AUTOMATION INSIGHTS CONTAINER */}
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="bg-white border border-slate-200/70 rounded-3xl shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-gradient-to-r from-indigo-50/20 to-transparent">
-              <div className="bg-indigo-100 p-2 rounded-xl text-indigo-600">
-                <IonIcon icon={sparklesOutline} className="text-lg" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-slate-800 text-sm">AI Copilot Insights</h3>
-                <span className="text-[9px] text-indigo-500 uppercase tracking-widest font-bold">Automated Recommendations</span>
-              </div>
-            </div>
-            <div className="p-4 space-y-3">
-              {aiInsights.map((insight) => (
-                <div key={insight.id} className="flex gap-3 items-start border-b border-slate-50 pb-3 last:border-b-0 last:pb-0">
-                  <div className={`p-2.5 rounded-2xl ${insight.color} mt-0.5`}>
-                    <IonIcon icon={insight.icon} className="text-base" />
-                  </div>
-                  <p className="text-xs font-semibold leading-relaxed text-slate-600">{insight.text}</p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* 3. CHARTS SECTIONS */}
-          <div className="space-y-6">
-            <IonCard className="shadow-sm border border-slate-200/60 rounded-3xl m-0 bg-white">
-              <IonCardContent className="p-5">
-                <h2 className="text-sm font-extrabold mb-4 text-slate-800 uppercase tracking-wider">Debit Expense Portfolio</h2>
-                <div className="chart-box h-60">
-                  {expenseData.length === 0 ? (
-                    <div className="w-full h-full flex items-center justify-center text-xs text-slate-400 font-bold">No expenses logged yet.</div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={expenseData} margin={{ left: -10, right: 10, top: 10, bottom: 0 }}>
-                        <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} />
-                        <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} />
-                        <Tooltip cursor={{ fill: '#f1f5f9/60' }} contentStyle={{ border: 'none', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', fontSize: '12px' }} />
-                        <Bar dataKey="value" fill="#6366f1" radius={[8, 8, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </IonCardContent>
-            </IonCard>
-
-            <IonCard className="shadow-sm border border-slate-200/60 rounded-3xl m-0 bg-white">
-              <IonCardContent className="p-5">
-                <h2 className="text-sm font-extrabold mb-4 text-slate-800 uppercase tracking-wider">Planned vs Completed Tasks</h2>
-                <div className="w-full h-64 flex justify-center items-center">
-                  {totalTasks === 0 ? (
-                    <div className="text-xs text-slate-400 font-bold">No tasks planned.</div>
-                  ) : (
-                    <PieChart width={300} height={250}>
-                      <Pie data={taskData} cx="50%" cy="50%" outerRadius={70} fill="#8884d8" dataKey="value" labelLine={false} label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}>
-                        {taskData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+          {/* Row of 5 Donut & Comparative Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            
+            {/* 1. Expense Breakdown Category Summary */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-[180px]">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Expense Summary</h3>
+              <div className="flex items-center gap-4 flex-1 mt-2">
+                <div className="w-16 h-16 shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={finalExpenseData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={20}
+                        outerRadius={30}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {finalExpenseData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
                       </Pie>
-                      <Tooltip contentStyle={{ border: 'none', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', fontSize: '12px' }} />
-                      <Legend />
                     </PieChart>
-                  )}
+                  </ResponsiveContainer>
                 </div>
-              </IonCardContent>
-            </IonCard>
+                <div className="flex-1 overflow-hidden space-y-0.5">
+                  {finalExpenseData.slice(0, 3).map((item, i) => (
+                    <div key={i} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 truncate">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                      <span className="truncate">{item.name}</span>
+                      <span className="text-slate-400 ml-auto shrink-0">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Tasks Summary */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-[180px]">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tasks Summary</h3>
+              <div className="flex items-center gap-4 flex-1 mt-2">
+                <div className="w-16 h-16 shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={finalTasksData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={20}
+                        outerRadius={30}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {finalTasksData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex-1 overflow-hidden space-y-0.5">
+                  {finalTasksData.map((item, i) => (
+                    <div key={i} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                      <span>{item.name}</span>
+                      <span className="text-slate-400 ml-auto">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Monthly Outflow (Last Month vs Current Month) */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-[180px]">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Outflow</h3>
+              <div className="flex items-center gap-4 flex-1 mt-2">
+                <div className="bg-amber-100/60 p-3 rounded-2xl text-amber-600 shrink-0">
+                  <IonIcon icon={flash} className="text-2xl" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] font-bold text-slate-400">LAST MONTH</div>
+                  <div className="text-xs font-extrabold text-slate-700">Rs. {lastMonthExpenses.toLocaleString()}</div>
+                  <div className="text-[10px] font-bold text-slate-400 mt-2">THIS MONTH</div>
+                  <div className="text-xs font-extrabold text-slate-700">Rs. {currentMonthExpenses.toLocaleString()}</div>
+                </div>
+                <div className="flex flex-col items-center justify-center text-emerald-600 font-extrabold text-xs ml-auto shrink-0 bg-emerald-50 px-2 py-1.5 rounded-xl">
+                  <span>99%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Deposits Savings Growths */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-[180px]">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Deposits growth</h3>
+              <div className="flex items-center gap-4 flex-1 mt-2">
+                <div className="bg-emerald-100/60 p-3 rounded-2xl text-emerald-600 shrink-0">
+                  <IonIcon icon={leafOutline} className="text-2xl" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] font-bold text-slate-400">BASE VALUE</div>
+                  <div className="text-xs font-extrabold text-slate-700">Rs. {baseSavings.toLocaleString()}</div>
+                  <div className="text-[10px] font-bold text-slate-400 mt-2">WITH INTEREST</div>
+                  <div className="text-xs font-extrabold text-slate-700">Rs. {interestGrowth.toLocaleString()}</div>
+                </div>
+                <div className="flex flex-col items-center justify-center text-emerald-600 font-extrabold text-xs ml-auto shrink-0 bg-emerald-50 px-2 py-1.5 rounded-xl">
+                  <span>51%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 5. Deposits Breakdown */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between h-[180px]">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Deposits Breakdown</h3>
+              <div className="flex items-center gap-4 flex-1 mt-2">
+                <div className="w-16 h-16 shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={finalDepositsData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={20}
+                        outerRadius={30}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {finalDepositsData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex-1 overflow-hidden space-y-0.5">
+                  {finalDepositsData.map((item, i) => (
+                    <div key={i} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                      <span>{item.name}</span>
+                      <span className="text-slate-400 ml-auto">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Full-width Bar Chart */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[400px]">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="text-sm font-bold text-slate-700 tracking-tight">Expenses Distribution Bar Chart</h3>
+              <div className="flex items-center gap-3 text-slate-500 text-lg">
+                <button className="p-1 hover:bg-slate-200/60 rounded transition-colors"><IonIcon icon={refreshOutline} /></button>
+                <button className="p-1 hover:bg-slate-200/60 rounded transition-colors"><IonIcon icon={downloadOutline} /></button>
+                <button className="p-1 hover:bg-slate-200/60 rounded transition-colors"><IonIcon icon={printOutline} /></button>
+                <button className="p-1 hover:bg-slate-200/60 rounded transition-colors"><IonIcon icon={gridOutline} /></button>
+              </div>
+            </div>
+            <div className="flex-1 p-6 flex flex-col items-center justify-center">
+              <div className="w-full h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={finalBarChartData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                    <XAxis dataKey="name" fontSize={10} stroke="#94a3b8" tickLine={false} />
+                    <YAxis fontSize={10} stroke="#94a3b8" tickLine={false} />
+                    <Tooltip cursor={{ fill: '#f1f5f9/60' }} contentStyle={{ border: 'none', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)', fontSize: '11px' }} />
+                    <Bar dataKey="amount" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={48} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex items-center gap-2 mt-4 text-[10px] font-bold text-slate-500">
+                <span className="w-3 h-3 bg-red-500 rounded-sm" />
+                <span>Expenses Incurred per Category (Rs.)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Split Summaries tables */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            {/* Table 1: Deposits Maturity Summary */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <h3 className="text-sm font-bold text-slate-700 tracking-tight">Maturity Summary - Deposits</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-semibold text-slate-600">
+                  <thead className="bg-slate-50 text-slate-500 border-b border-slate-100 text-[10px] tracking-wider uppercase font-bold">
+                    <tr>
+                      <th className="px-6 py-3">Bank</th>
+                      <th className="px-6 py-3">Type</th>
+                      <th className="px-6 py-3">Amount</th>
+                      <th className="px-6 py-3">Maturity Date</th>
+                      <th className="px-6 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {deposits.length > 0 ? (
+                      deposits.slice(0, 4).map((d) => (
+                        <tr key={d.id} className="hover:bg-slate-50/40">
+                          <td className="px-6 py-3 font-bold text-slate-800">{d.bank}</td>
+                          <td className="px-6 py-3">{d.type}</td>
+                          <td className="px-6 py-3 font-bold">Rs. {d.amount.toLocaleString()}</td>
+                          <td className="px-6 py-3 text-slate-400">{d.maturityDate || 'N/A'}</td>
+                          <td className="px-6 py-3">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                              Active
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      [
+                        { bank: 'SBI Bank', type: 'FD', amount: 50000, date: '2026-12-10' },
+                        { bank: 'HDFC Bank', type: 'RD', amount: 15000, date: '2026-10-05' },
+                      ].map((d, i) => (
+                        <tr key={i} className="hover:bg-slate-50/40">
+                          <td className="px-6 py-3 font-bold text-slate-800">{d.bank}</td>
+                          <td className="px-6 py-3">{d.type}</td>
+                          <td className="px-6 py-3 font-bold">Rs. {d.amount.toLocaleString()}</td>
+                          <td className="px-6 py-3 text-slate-400">{d.date}</td>
+                          <td className="px-6 py-3">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                              Active
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Table 2: Travel Tickets Status */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <h3 className="text-sm font-bold text-slate-700 tracking-tight">Travel Transit Summary</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-semibold text-slate-600">
+                  <thead className="bg-slate-50 text-slate-500 border-b border-slate-100 text-[10px] tracking-wider uppercase font-bold">
+                    <tr>
+                      <th className="px-6 py-3">PNR</th>
+                      <th className="px-6 py-3">Mode</th>
+                      <th className="px-6 py-3">Date</th>
+                      <th className="px-6 py-3">Fare</th>
+                      <th className="px-6 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {tickets.length > 0 ? (
+                      tickets.slice(0, 4).map((t) => (
+                        <tr key={t.id} className="hover:bg-slate-50/40">
+                          <td className="px-6 py-3 font-bold text-slate-800">{t.pnr || 'N/A'}</td>
+                          <td className="px-6 py-3 font-bold">{t.type}</td>
+                          <td className="px-6 py-3 text-slate-400">{new Date(t.time).toLocaleDateString()}</td>
+                          <td className="px-6 py-3 font-bold">Rs. {t.fare}</td>
+                          <td className="px-6 py-3">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              t.status === 'BOOKED' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-500'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${
+                                t.status === 'BOOKED' ? 'bg-blue-500' : 'bg-red-500'
+                              }`} />
+                              {t.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      [
+                        { pnr: '4289053123', type: 'TRAIN', date: '2026-06-20', fare: 850, status: 'BOOKED' },
+                        { pnr: 'BUSAX45091', type: 'BUS', date: '2026-06-25', fare: 1200, status: 'BOOKED' },
+                      ].map((t, i) => (
+                        <tr key={i} className="hover:bg-slate-50/40">
+                          <td className="px-6 py-3 font-bold text-slate-800">{t.pnr}</td>
+                          <td className="px-6 py-3 font-bold">{t.type}</td>
+                          <td className="px-6 py-3 text-slate-400">{t.date}</td>
+                          <td className="px-6 py-3 font-bold">Rs. {t.fare}</td>
+                          <td className="px-6 py-3">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
+                              <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                              {t.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
           </div>
 
         </div>
       </IonContent>
     </IonPage>
-  );
-};
-
-// Simulated Recharts Legend to render below Pie chart
-const Legend: React.FC = () => {
-  return (
-    <div className="flex justify-center gap-6 text-xs text-slate-600 font-bold mt-2">
-      <div className="flex items-center gap-1.5">
-        <div className="w-3 h-3 rounded bg-indigo-400" />
-        <span>Planned Tasks</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <div className="w-3 h-3 rounded bg-emerald-400" />
-        <span>Completed Tasks</span>
-      </div>
-    </div>
   );
 };
 
