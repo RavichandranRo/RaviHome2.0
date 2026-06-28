@@ -26,6 +26,9 @@ interface PremiumDataGridProps<T> {
   exportTitle: string;
   statusField?: keyof T;
   statusFilters?: { label: string; value: any }[];
+  showSelection?: boolean;
+  selectedIds?: Set<string | number>;
+  onSelectionChange?: (selected: Set<string | number>) => void;
 }
 
 function PremiumDataGrid<T extends { id: string | number }>({
@@ -36,7 +39,10 @@ function PremiumDataGrid<T extends { id: string | number }>({
   exportFilename,
   exportTitle,
   statusField,
-  statusFilters
+  statusFilters,
+  showSelection = true,
+  selectedIds,
+  onSelectionChange
 }: PremiumDataGridProps<T>) {
   // 1. Text Search Filter
   const [searchTerm, setSearchTerm] = useState('');
@@ -145,6 +151,39 @@ function PremiumDataGrid<T extends { id: string | number }>({
     return filteredAndSortedData.slice(startIndex, startIndex + pageSize);
   }, [filteredAndSortedData, activePage, pageSize]);
 
+  // Internal selection state
+  const [localSelectedIds, setLocalSelectedIds] = useState<Set<string | number>>(new Set());
+  const activeSelectedIds = selectedIds !== undefined ? selectedIds : localSelectedIds;
+  const setActiveSelectedIds = (next: Set<string | number>) => {
+    if (onSelectionChange) {
+      onSelectionChange(next);
+    } else {
+      setLocalSelectedIds(next);
+    }
+  };
+
+  const allPaginatedSelected = paginatedData.length > 0 && paginatedData.every((item) => activeSelectedIds.has(item.id));
+
+  const toggleSelectAll = () => {
+    const nextSelected = new Set(activeSelectedIds);
+    if (allPaginatedSelected) {
+      paginatedData.forEach((item) => nextSelected.delete(item.id));
+    } else {
+      paginatedData.forEach((item) => nextSelected.add(item.id));
+    }
+    setActiveSelectedIds(nextSelected);
+  };
+
+  const toggleSelectRow = (id: string | number) => {
+    const nextSelected = new Set(activeSelectedIds);
+    if (nextSelected.has(id)) {
+      nextSelected.delete(id);
+    } else {
+      nextSelected.add(id);
+    }
+    setActiveSelectedIds(nextSelected);
+  };
+
   // Render columns count check
   const activeColDefs = columns.filter((col) => visibleColumns[col.key] !== false);
 
@@ -192,12 +231,24 @@ function PremiumDataGrid<T extends { id: string | number }>({
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left whitespace-nowrap">
             <thead>
-              <tr>
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 select-none">
+                {showSelection && (
+                  <th className="w-12 px-4 py-3 text-center">
+                    <input 
+                      type="checkbox" 
+                      checked={allPaginatedSelected} 
+                      onChange={toggleSelectAll} 
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer outline-none transition-colors"
+                    />
+                  </th>
+                )}
                 {activeColDefs.map((col) => (
                   <th
                     key={col.key}
                     onClick={() => col.sortable !== false && requestSort(col.key)}
-                    className={`select-none ${col.sortable !== false ? 'cursor-pointer hover:bg-slate-100/60' : ''}`}
+                    className={`px-4 py-3 text-[10px] font-bold uppercase tracking-wider ${
+                      col.sortable !== false ? 'cursor-pointer hover:bg-slate-100/60' : ''
+                    }`}
                   >
                     <div className="flex items-center gap-1.5">
                       <span>{col.label}</span>
@@ -211,18 +262,28 @@ function PremiumDataGrid<T extends { id: string | number }>({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 bg-white">
               {paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={activeColDefs.length} className="text-center py-8 text-slate-400 font-bold">
+                  <td colSpan={activeColDefs.length + (showSelection ? 1 : 0)} className="text-center py-8 text-slate-400 font-bold text-xs">
                     No matching records found.
                   </td>
                 </tr>
               ) : (
                 paginatedData.map((item, index) => (
                   <tr key={item.id} className="hover:bg-slate-50/40 transition-colors">
+                    {showSelection && (
+                      <td className="w-12 px-4 py-3 text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={activeSelectedIds.has(item.id)} 
+                          onChange={() => toggleSelectRow(item.id)} 
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer outline-none transition-colors"
+                        />
+                      </td>
+                    )}
                     {activeColDefs.map((col) => (
-                      <td key={col.key}>
+                      <td key={col.key} className="px-4 py-3 text-xs text-slate-700 font-medium">
                         {col.render ? col.render(item, (activePage - 1) * pageSize + index) : (item as any)[col.key]}
                       </td>
                     ))}
@@ -239,28 +300,18 @@ function PremiumDataGrid<T extends { id: string | number }>({
         
         {/* Actions Controls (Refresh, Column config, Export) on bottom-left */}
         <div className="flex items-center gap-2">
-          {/* Refresh Button */}
-          <button
-            type="button"
-            onClick={handleRefresh}
-            className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-100 flex items-center justify-center transition-colors"
-            title="Refresh list"
-          >
-            <IonIcon
-              icon={refreshOutline}
-              className={`text-sm ${isRefreshing ? 'animate-spin' : ''}`}
-            />
-          </button>
-
+          {/* Column configuration dropdown selector */}
           {/* Column configuration dropdown selector */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowColConfig(!showColConfig)}
-              className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-100 flex items-center justify-center gap-1 transition-colors"
+              className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-100 flex items-center justify-center gap-1 transition-colors cursor-pointer outline-none"
               title="Columns layout"
             >
-              <IonIcon icon={settingsOutline} className="text-sm" />
+              <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M3 12h18M3 20h18M8 2v4M16 10v4M10 18v4" />
+              </svg>
               <IonIcon icon={chevronDownOutline} className="text-[8px]" />
             </button>
             
@@ -291,6 +342,18 @@ function PremiumDataGrid<T extends { id: string | number }>({
               </>
             )}
           </div>
+
+          {/* Refresh Button */}
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer outline-none"
+            title="Refresh list"
+          >
+            <svg className={`w-4 h-4 text-slate-500 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+          </button>
 
           {/* Export Menu button */}
           <ExportMenu data={filteredAndSortedData} filename={exportFilename} title={exportTitle} />

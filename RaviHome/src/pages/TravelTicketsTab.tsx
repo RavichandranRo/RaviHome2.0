@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   IonButton,
   IonContent,
@@ -12,6 +12,7 @@ import {
   IonSelectOption,
   IonTitle,
   IonToolbar,
+  IonSpinner,
   useIonAlert,
   useIonLoading
 } from '@ionic/react';
@@ -30,6 +31,7 @@ import {
   listOutline
 } from 'ionicons/icons';
 import { useForm } from 'react-hook-form';
+import Tesseract from 'tesseract.js';
 import { parseAICommand } from '../utils/aiCommandParser';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { useAppStore, Ticket } from '../store/useAppStore';
@@ -49,6 +51,8 @@ const emptyTicket: TicketFormValues = {
   fare: 0,
   paymentMode: '',
   paidBank: 'Punjab National Bank',
+  ticketFileUrl: '',
+  ticketFileName: '',
 };
 
 const TravelTicketsTab: React.FC = () => {
@@ -58,11 +62,15 @@ const TravelTicketsTab: React.FC = () => {
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [showFormAI, setShowFormAI] = useState(false);
   const [formAIPrompt, setFormAIPrompt] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Custom Tabs State for Travel Tickets
   const [activeTravelTab, setActiveTravelTab] = useState<'ALL' | 'TRAIN' | 'BUS'>('ALL');
 
-  const { register, handleSubmit, reset, setValue } = useForm<TicketFormValues>({ defaultValues: emptyTicket });
+  const { register, handleSubmit, reset, setValue, watch } = useForm<TicketFormValues>({ defaultValues: emptyTicket });
   const tickets = useAppStore((state) => state.tickets);
   const addTicket = useAppStore((state) => state.addTicket);
   const updateTicket = useAppStore((state) => state.updateTicket);
@@ -92,6 +100,79 @@ const TravelTicketsTab: React.FC = () => {
     }
   };
 
+  const applyTicketText = (text: string) => {
+    const pnrMatch = text.match(/\b\d{10}\b/);
+    if (pnrMatch) setValue('pnr', pnrMatch[0]);
+
+    const amounts = text.match(/\b\d{2,5}(?:\.\d{2})?\b/g)?.map(Number).filter(v => v > 0) || [];
+    if (amounts.length > 0) {
+      const fareVal = Math.max(...amounts);
+      setValue('fare', fareVal);
+    }
+
+    const coachMatch = text.match(/\b([A-Z]\d{1,2})\b/);
+    if (coachMatch) setValue('coachNumber', coachMatch[0]);
+
+    const seatMatch = text.match(/Seat\s*(\d{1,2})|Seat\s*No\.?\s*(\d{1,2})/i);
+    if (seatMatch) setValue('seatNumber', seatMatch[1] || seatMatch[2]);
+
+    if (/train/i.test(text)) setValue('type', 'TRAIN');
+    else if (/bus/i.test(text)) setValue('type', 'BUS');
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setIsDragActive(true);
+    } else if (e.type === "dragleave") {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setSelectedFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  const triggerFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleUploadSubmit = () => {
+    if (!selectedFile) return;
+    setIsScanning(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      setValue('ticketFileUrl', dataUrl);
+      setValue('ticketFileName', selectedFile.name);
+      showNotification('success', 'Ticket Attached', `Successfully attached: "${selectedFile.name}"`);
+      setSelectedFile(null);
+      setIsScanning(false);
+    };
+    reader.onerror = () => {
+      showNotification('failure', 'Upload Error', 'Failed to read file.');
+      setIsScanning(false);
+    };
+    reader.readAsDataURL(selectedFile);
+  };
+
+  const cancelSelection = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   // Filter based on active Travel sub-tab
   const filteredTickets = tickets.filter((ticket) => {
     if (activeTravelTab === 'ALL') return true;
@@ -116,6 +197,8 @@ const TravelTicketsTab: React.FC = () => {
       fare: ticket.fare,
       paymentMode: ticket.paymentMode || '',
       paidBank: ticket.paidBank || '',
+      ticketFileUrl: ticket.ticketFileUrl || '',
+      ticketFileName: ticket.ticketFileName || '',
     });
     setIsFormOpen(true);
   };
@@ -277,6 +360,43 @@ const TravelTicketsTab: React.FC = () => {
     }
   };
 
+  const openTicketFile = (fileDataUrl: string, fileName?: string) => {
+    try {
+      if (fileDataUrl.startsWith('data:')) {
+        const arr = fileDataUrl.split(',');
+        const mime = arr[0].match(/:(.*?);/)?.[1] || '';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        
+        const newWindow = window.open();
+        if (newWindow) {
+          newWindow.document.title = fileName || 'Travel Ticket';
+          if (mime.includes('pdf')) {
+            newWindow.document.body.innerHTML = `<iframe src="${blobUrl}" style="width:100%; height:100vh; border:none; margin:0; padding:0;"></iframe>`;
+          } else {
+            newWindow.document.body.innerHTML = `<div style="display:flex; justify-content:center; align-items:center; min-height:100vh; background:#0f172a;"><img src="${blobUrl}" style="max-width:100%; max-height:100vh; object-fit:contain; border-radius:8px;" /></div>`;
+          }
+        } else {
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = fileName || 'Ticket';
+          a.click();
+        }
+      } else {
+        window.open(fileDataUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error opening file:', error);
+      showNotification('failure', 'Viewer Error', 'Failed to open the attached ticket file.');
+    }
+  };
+
   // Columns definition
   const columns: ColumnDef<Ticket>[] = [
     {
@@ -299,7 +419,22 @@ const TravelTicketsTab: React.FC = () => {
     {
       key: 'pnr',
       label: 'PNR Number',
-      render: (item) => <span>{item.pnr || '-'}</span>
+      render: (item) => {
+        if (item.ticketFileUrl) {
+          return (
+            <button
+              onClick={() => openTicketFile(item.ticketFileUrl!, item.ticketFileName)}
+              className="text-blue-600 hover:text-blue-800 hover:underline font-bold text-left outline-none border-none bg-transparent p-0 cursor-pointer flex items-center gap-1"
+            >
+              {item.pnr || 'View'}
+              <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+              </svg>
+            </button>
+          );
+        }
+        return <span className="font-semibold text-slate-700">{item.pnr || '-'}</span>;
+      }
     },
     {
       key: 'time',
@@ -368,7 +503,7 @@ const TravelTicketsTab: React.FC = () => {
             <button
               onClick={() => setActiveTravelTab('ALL')}
               className={`pb-2.5 px-1 relative flex items-center gap-1.5 transition-colors ${
-                activeTravelTab === 'ALL' ? 'text-slate-800 font-black' : 'text-slate-400 hover:text-slate-600'
+                activeTravelTab === 'ALL' ? 'theme-text font-black' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <IonIcon icon={listOutline} className="text-base" />
@@ -380,7 +515,7 @@ const TravelTicketsTab: React.FC = () => {
             <button
               onClick={() => setActiveTravelTab('TRAIN')}
               className={`pb-2.5 px-1 relative flex items-center gap-1.5 transition-colors ${
-                activeTravelTab === 'TRAIN' ? 'text-slate-800 font-black' : 'text-slate-400 hover:text-slate-600'
+                activeTravelTab === 'TRAIN' ? 'theme-text font-black' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <IonIcon icon={trainOutline} className="text-base" />
@@ -392,7 +527,7 @@ const TravelTicketsTab: React.FC = () => {
             <button
               onClick={() => setActiveTravelTab('BUS')}
               className={`pb-2.5 px-1 relative flex items-center gap-1.5 transition-colors ${
-                activeTravelTab === 'BUS' ? 'text-slate-800 font-black' : 'text-slate-400 hover:text-slate-600'
+                activeTravelTab === 'BUS' ? 'theme-text font-black' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <IonIcon icon={busOutline} className="text-base" />
@@ -430,14 +565,29 @@ const TravelTicketsTab: React.FC = () => {
 
         {/* Form sliding Drawer */}
         <IonModal isOpen={isFormOpen} onDidDismiss={closeForm} className="ticket-form-modal">
-          <IonHeader className="ion-no-border">
-            <IonToolbar>
-              <IonTitle>{editingTicket ? 'Edit Ticket' : 'Add Ticket'}</IonTitle>
-              <IonButton slot="end" fill="clear" onClick={() => setShowFormAI(!showFormAI)} title="AI Auto-Fill">
-                <IonIcon icon={sparklesOutline} slot="icon-only" className="animate-pulse text-indigo-600" style={{ color: 'var(--theme-primary)' }} />
-              </IonButton>
-              <IonButton slot="end" fill="clear" onClick={closeForm}><IonIcon icon={closeOutline} slot="icon-only" /></IonButton>
-            </IonToolbar>
+          <IonHeader className="ion-no-border border-b border-slate-200">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-white select-none">
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={closeForm}
+                  className="w-8 h-8 rounded-full border border-blue-200 flex items-center justify-center text-blue-500 hover:bg-blue-50 transition-colors cursor-pointer outline-none bg-white shrink-0"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                  </svg>
+                </button>
+                <span className="text-[15px] font-bold text-slate-800 tracking-wide">{editingTicket ? 'Edit Ticket' : 'Add Ticket'}</span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowFormAI(!showFormAI)} 
+                className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 hover:bg-indigo-100 transition-colors outline-none cursor-pointer"
+                title="AI Auto-Fill"
+                style={{ color: 'var(--theme-primary)', borderColor: 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' }}
+              >
+                <IonIcon icon={sparklesOutline} className="text-base animate-pulse" />
+              </button>
+            </div>
             {showFormAI && (
               <div className="p-3 bg-indigo-50/70 border-b border-indigo-100 flex gap-2 items-center">
                 <input 
@@ -454,39 +604,220 @@ const TravelTicketsTab: React.FC = () => {
             )}
           </IonHeader>
           <IonContent className="ion-padding ticket-modal-content bg-slate-50">
-            <form onSubmit={handleSubmit(onSubmit, onError)} className="ticket-form modal-form-panel p-4 bg-white border border-slate-200/60 rounded-2xl shadow-sm">
-              <div className="space-y-4">
-                <IonSelect fill="outline" label="Type" labelPlacement="floating" {...register('type', { required: true })}>
-                  <IonSelectOption value="BUS">Bus</IonSelectOption>
-                  <IonSelectOption value="TRAIN">Train</IonSelectOption>
-                </IonSelect>
-                <IonInput fill="outline" label="PNR Number" labelPlacement="floating" {...register('pnr')} />
-                <IonInput fill="outline" label="Travel Time" labelPlacement="floating" type="datetime-local" {...register('time', { required: true })} />
-                <IonInput fill="outline" label="Coach Number" labelPlacement="floating" {...register('coachNumber')} />
-                <IonInput fill="outline" label="Seat Number" labelPlacement="floating" {...register('seatNumber')} />
-                <IonInput fill="outline" label="Seat Type" labelPlacement="floating" {...register('seatType')} />
-                <IonInput fill="outline" label="Fare Amount" labelPlacement="floating" type="number" step="0.01" {...register('fare', { required: true, valueAsNumber: true })}>
-                  <IonButton
-                    slot="end"
-                    fill="clear"
-                    type="button"
-                    color={isListening ? 'danger' : 'primary'}
-                    onClick={() => listenForVoiceInput((text) => setValue('seatType', text), setIsListening)}
-                  >
-                    <IonIcon icon={micOutline} className={isListening ? 'animate-pulse' : ''} />
-                  </IonButton>
-                </IonInput>
-                <IonSelect fill="outline" label="Payment Mode" labelPlacement="floating" {...register('paymentMode')}>
-                  <IonSelectOption value="Cash">Cash</IonSelectOption>
-                  <IonSelectOption value="UPI">UPI</IonSelectOption>
-                  <IonSelectOption value="Card">Card</IonSelectOption>
-                  <IonSelectOption value="Net Banking">Net Banking</IonSelectOption>
-                </IonSelect>
-                <IonInput fill="outline" label="Paid Bank" labelPlacement="floating" {...register('paidBank')} />
+            <form onSubmit={handleSubmit(onSubmit, onError)} className="modal-form-panel p-5 bg-white space-y-4">
+              {/* Drag and Drop File Upload Component */}
+              <div className="mb-2 space-y-1.5 select-none">
+                <label className="text-xs font-bold text-slate-500 tracking-wide uppercase">File Name *</label>
+                <div 
+                  className={`border rounded-2xl bg-white transition-all overflow-hidden ${
+                    isDragActive ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-slate-200'
+                  }`}
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                >
+                  {/* Top action buttons row */}
+                  <div className="p-3.5 bg-slate-50/50 border-b border-slate-100 flex items-center gap-2">
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      accept="image/*,application/pdf" 
+                      onChange={handleFileChange} 
+                      className="hidden" 
+                    />
+                    <button
+                      type="button"
+                      onClick={triggerFileSelect}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-98 border-0 outline-none"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                      Choose file to Upload
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!selectedFile || isScanning}
+                      onClick={handleUploadSubmit}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border-0 outline-none ${
+                        selectedFile && !isScanning
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm active:scale-98'
+                          : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {isScanning ? (
+                        <IonSpinner name="dots" className="w-4 h-4" />
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                        </svg>
+                      )}
+                      Upload
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!selectedFile || isScanning}
+                      onClick={cancelSelection}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border-0 outline-none ${
+                        selectedFile && !isScanning
+                          ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 active:scale-98'
+                          : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Cancel
+                    </button>
+                  </div>
+
+                  {/* Bottom drag-and-drop info zone */}
+                  <div className="p-5 flex items-center gap-3 bg-white">
+                    <div className="text-slate-400 text-2xl shrink-0 p-2 bg-slate-50 rounded-xl">
+                      <svg className="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 text-[11px] font-bold text-slate-500 tracking-wide leading-relaxed">
+                      {selectedFile ? (
+                        <span className="text-emerald-600 block">
+                          Selected: <strong className="font-extrabold">{selectedFile.name}</strong> ({(selectedFile.size / 1024).toFixed(1)} KB)
+                        </span>
+                      ) : watch('ticketFileName') ? (
+                        <span className="text-emerald-600 block">
+                          Currently Attached: <strong className="font-extrabold">{watch('ticketFileName')}</strong>
+                        </span>
+                      ) : (
+                        <span>
+                          Drag and drop a .PNG or .JPG or .JPEG or .WEBP or .PDF file here or click
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="form-actions mt-6">
-                <button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
-                <IonButton type="submit"><IonIcon icon={checkmarkCircleOutline} slot="start" />Submit</IonButton>
+
+              <div className="space-y-4 mt-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Type *</label>
+                  <select 
+                    {...register('type', { required: true })} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                  >
+                    <option value="BUS">Bus</option>
+                    <option value="TRAIN">Train</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">PNR Number</label>
+                  <input 
+                    type="text" 
+                    {...register('pnr')} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                    placeholder="10-digit PNR"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Travel Time *</label>
+                  <input 
+                    type="datetime-local" 
+                    {...register('time', { required: true })} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Coach Number</label>
+                  <input 
+                    type="text" 
+                    {...register('coachNumber')} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                    placeholder="e.g. B1"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Seat Number</label>
+                  <input 
+                    type="text" 
+                    {...register('seatNumber')} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                    placeholder="e.g. 24"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Seat Type</label>
+                  <div className="relative flex items-center">
+                    <input 
+                      type="text" 
+                      {...register('seatType')} 
+                      className="w-full pl-3 pr-10 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                      placeholder="e.g. Upper Berth"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => listenForVoiceInput((text) => setValue('seatType', text), setIsListening)}
+                      className="absolute right-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      <IonIcon icon={micOutline} className={`text-base ${isListening ? 'text-red-500 animate-pulse' : ''}`} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Fare Amount *</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    {...register('fare', { required: true, valueAsNumber: true })} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Payment Mode</label>
+                  <select 
+                    {...register('paymentMode')} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Card">Card</option>
+                    <option value="Net Banking">Net Banking</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Paid Bank</label>
+                  <input 
+                    type="text" 
+                    {...register('paidBank')} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                    placeholder="Paid Bank"
+                  />
+                </div>
+              </div>
+              <div className="form-actions mt-6 flex justify-end gap-3 pt-4 border-t border-slate-100 bg-white">
+                <button 
+                  type="button" 
+                  onClick={closeForm} 
+                  className="px-4 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border-0 outline-none"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-4 py-2 text-white text-xs font-bold rounded-lg transition-colors shadow-sm border-0 outline-none flex items-center gap-1"
+                  style={{ backgroundColor: 'var(--theme-primary)' }}
+                >
+                  <IonIcon icon={checkmarkCircleOutline} className="text-sm" />
+                  Submit
+                </button>
               </div>
             </form>
           </IonContent>
@@ -520,7 +851,21 @@ const TravelTicketsTab: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4 border-b border-dashed border-slate-200 pb-3">
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">PNR Number</span>
-                      <p className="font-extrabold text-slate-800 text-sm mt-0.5">{viewingTicket.pnr || 'N/A'}</p>
+                      {viewingTicket.ticketFileUrl ? (
+                        <p className="mt-0.5">
+                          <button
+                            onClick={() => openTicketFile(viewingTicket.ticketFileUrl!, viewingTicket.ticketFileName)}
+                            className="text-blue-600 hover:text-blue-800 hover:underline font-extrabold text-sm text-left outline-none border-none bg-transparent p-0 cursor-pointer flex items-center gap-1"
+                          >
+                            {viewingTicket.pnr || 'View'}
+                            <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                            </svg>
+                          </button>
+                        </p>
+                      ) : (
+                        <p className="font-extrabold text-slate-800 text-sm mt-0.5">{viewingTicket.pnr || 'N/A'}</p>
+                      )}
                     </div>
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Departure Date</span>

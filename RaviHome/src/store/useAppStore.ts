@@ -35,6 +35,8 @@ export interface Ticket {
   pnr: string;
   paymentMode?: string;
   paidBank?: string;
+  ticketFileUrl?: string;
+  ticketFileName?: string;
 }
 
 export interface Deposit {
@@ -109,7 +111,12 @@ export const useAppStore = create<AppState>()(
     tickets: [],
     deposits: [],
     ebReadings: [],
-    auditLogs: [],
+    auditLogs: [
+      { id: '1', action: "User 'ravichandran.c@dhyan.com' has logged in from IP 192.168.1.45", date: new Date(Date.now() - 60000 * 10).toLocaleString() },
+      { id: '2', action: "Sync inventory for Cabinet 12 has been triggered successfully", date: new Date(Date.now() - 60000 * 25).toLocaleString() },
+      { id: '3', action: "Enabled Two-Factor authentication for the user - ravichandran.c", date: new Date(Date.now() - 60000 * 45).toLocaleString() },
+      { id: '4', action: "Real-time lamp details loaded from Smart Lamp Web Hook", date: new Date(Date.now() - 60000 * 90).toLocaleString() }
+    ],
     theme: 'light',
     themeColor: 'indigo',
     recordsPerPage: 50,

@@ -30,10 +30,12 @@ const ExportMenu: React.FC<ExportMenuProps> = ({ data, filename, title }) => {
     <button
       type="button"
       onClick={openExportMenu}
-      className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-100 flex items-center justify-center transition-colors"
+      className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer outline-none"
       title="Download/Export"
     >
-      <IonIcon icon={downloadOutline} className="text-sm" />
+      <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+      </svg>
     </button>
   );
 };

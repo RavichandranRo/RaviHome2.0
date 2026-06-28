@@ -1,5 +1,5 @@
 import React from 'react';
-import { IonPage, IonContent, IonIcon } from '@ionic/react';
+import { IonPage, IonContent, IonIcon, IonHeader, IonToolbar, IonTitle } from '@ionic/react';
 import { useAppStore } from '../store/useAppStore';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 import {
@@ -105,17 +105,13 @@ const DashboardTab: React.FC = () => {
 
   return (
     <IonPage>
-      <IonContent className="bg-slate-50 text-slate-800">
-        <div className="flex flex-col min-h-full p-6 space-y-6">
-          {/* Breadcrumbs & Navigation */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 select-none">
-              <span className="hover:text-slate-700 cursor-pointer">Home</span>
-              <span>&gt;</span>
-              <span className="text-slate-800 font-bold">Dashboard</span>
-            </div>
-          </div>
-
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="bg-gray-50">
+          <IonTitle><span className="app-page-title">Dashboard</span></IonTitle>
+        </IonToolbar>
+      </IonHeader>
+      <IonContent className="ion-padding bg-gray-50">
+        <div className="travel-shell space-y-6">
           {/* Row of 5 Donut & Comparative Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             

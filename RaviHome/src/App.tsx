@@ -6,7 +6,7 @@ import {
 import { IonReactRouter } from '@ionic/react-router';
 import {
   list, checkmarkDone, flash, train, wallet, cash, pieChart, lockClosed, settingsOutline,
-  documentTextOutline, sparklesOutline, searchOutline
+  documentTextOutline, sparklesOutline, searchOutline, barChartOutline
 } from 'ionicons/icons';
 import { NativeBiometric } from 'capacitor-native-biometric';
 import { Capacitor } from '@capacitor/core';
@@ -20,6 +20,7 @@ import TravelTicketsTab from './pages/TravelTicketsTab';
 import PaymentTab from './pages/PaymentTab';
 import DepositsTab from './pages/DepositsTab';
 import DashboardTab from './pages/DashboardTab';
+import StatisticsTab from './pages/StatisticsTab';
 import SettingsTab from './pages/SettingsTab';
 import { useAppStore } from './store/useAppStore';
 import { useNotificationStore } from './store/useNotificationStore';
@@ -46,6 +47,7 @@ const HeaderBar: React.FC<{ timeString: string }> = ({ timeString }) => {
       case '/travel': return 'Travel';
       case '/payments': return 'Payments';
       case '/deposits': return 'Deposits';
+      case '/statistics': return 'Statistics';
       case '/logs': return 'Logs';
       case '/settings': return 'Settings';
       default: return 'Dashboard';
@@ -305,6 +307,9 @@ const App: React.FC = () => {
             <Route exact path="/logs">
               <AuditLogsTab />
             </Route>
+            <Route exact path="/statistics">
+              <StatisticsTab />
+            </Route>
             <Route exact path="/settings">
               <SettingsTab />
             </Route>
@@ -341,6 +346,10 @@ const App: React.FC = () => {
             <IonTabButton tab="deposits" href="/deposits">
               <IonIcon icon={cash} />
               <IonLabel>Deposits</IonLabel>
+            </IonTabButton>
+            <IonTabButton tab="statistics" href="/statistics">
+              <IonIcon icon={barChartOutline} />
+              <IonLabel>Statistics</IonLabel>
             </IonTabButton>
             <IonTabButton tab="logs" href="/logs">
               <IonIcon icon={documentTextOutline} />

@@ -181,11 +181,14 @@ ion-button.theme-btn {
   display: inline-flex;
   align-items: center;
   margin-left: 10px;
-  padding: 6px 12px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: rgba(37, 99, 235, 0.06);
-  color: var(--app-text);
+  padding: 4px 2px 6px;
+  border: none !important;
+  border-bottom: 2.5px solid var(--theme-primary) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--theme-primary);
+  font-weight: 800;
+  font-size: 15px !important;
 }
 
 .travel-shell,

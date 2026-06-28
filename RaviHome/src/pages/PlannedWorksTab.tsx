@@ -169,25 +169,65 @@ const PlannedWorksTab: React.FC = () => {
 
         {/* Form sliding drawer */}
         <IonModal isOpen={isFormOpen} onDidDismiss={closeForm} className="entry-form-modal">
-          <IonHeader className="ion-no-border">
-            <IonToolbar>
-              <IonTitle>{editingTask ? 'Edit Planned Work' : 'Add Planned Work'}</IonTitle>
-              <IonButton slot="end" fill="clear" onClick={closeForm}><IonIcon icon={closeOutline} slot="icon-only" /></IonButton>
-            </IonToolbar>
+          <IonHeader className="ion-no-border border-b border-slate-200">
+            <div className="flex items-center gap-3 px-4 py-3.5 bg-white select-none">
+              <button 
+                onClick={closeForm}
+                className="w-8 h-8 rounded-full border border-blue-200 flex items-center justify-center text-blue-500 hover:bg-blue-50 transition-colors cursor-pointer outline-none bg-white shrink-0"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                </svg>
+              </button>
+              <span className="text-[15px] font-bold text-slate-800 tracking-wide">{editingTask ? 'Edit Planned Work' : 'Add Planned Work'}</span>
+            </div>
           </IonHeader>
           <IonContent className="ion-padding ticket-modal-content bg-slate-50">
-            <form onSubmit={handleSubmit(onSubmit)} className="entry-form modal-form-panel p-4 bg-white border border-slate-200/60 rounded-2xl shadow-sm">
-              <div className="space-y-4">
-                <IonInput fill="outline" label="Task Title" labelPlacement="floating" {...register('title', { required: true })}>
-                  <IonButton slot="end" fill="clear" type="button" color={isListening ? 'danger' : 'primary'} onClick={() => listenForVoiceInput((text) => setValue('title', text), setIsListening)}>
-                    <IonIcon icon={micOutline} className={isListening ? 'animate-pulse' : ''} />
-                  </IonButton>
-                </IonInput>
-                <IonInput fill="outline" label="Date" labelPlacement="floating" type="date" {...register('date', { required: true })} />
+            <form onSubmit={handleSubmit(onSubmit)} className="modal-form-panel p-5 bg-white space-y-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-slate-600">Task Title *</label>
+                <div className="relative flex items-center">
+                  <input 
+                    type="text" 
+                    {...register('title', { required: true })} 
+                    className="w-full pl-3 pr-10 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800"
+                    placeholder="Enter task title"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => listenForVoiceInput((text) => setValue('title', text), setIsListening)}
+                    className="absolute right-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  >
+                    <IonIcon icon={micOutline} className={`text-base ${isListening ? 'text-red-500 animate-pulse' : ''}`} />
+                  </button>
+                </div>
               </div>
-              <div className="form-actions mt-6">
-                <button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
-                <IonButton type="submit"><IonIcon icon={checkmarkCircleOutline} slot="start" />Submit</IonButton>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-slate-600">Date *</label>
+                <input 
+                  type="date" 
+                  {...register('date', { required: true })} 
+                  className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                />
+              </div>
+
+              <div className="form-actions mt-6 flex justify-end gap-3 pt-4 border-t border-slate-100 bg-white">
+                <button 
+                  type="button" 
+                  onClick={closeForm} 
+                  className="px-4 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border-0 outline-none"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-4 py-2 text-white text-xs font-bold rounded-lg transition-colors shadow-sm border-0 outline-none flex items-center gap-1"
+                  style={{ backgroundColor: 'var(--theme-primary)' }}
+                >
+                  <IonIcon icon={checkmarkCircleOutline} className="text-sm" />
+                  Submit
+                </button>
               </div>
             </form>
           </IonContent>

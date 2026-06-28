@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   IonButton,
   IonCard,
@@ -17,7 +17,7 @@ import {
   IonSelectOption,
   useIonAlert
 } from '@ionic/react';
-import { add, cameraOutline, checkmarkCircleOutline, closeOutline, createOutline, eyeOutline, micOutline, trashOutline, cloudUploadOutline, sparklesOutline } from 'ionicons/icons';
+import { add, cameraOutline, checkmarkCircleOutline, closeOutline, createOutline, eyeOutline, micOutline, trashOutline, cloudUploadOutline, sparklesOutline, walletOutline, cashOutline } from 'ionicons/icons';
 import { useForm } from 'react-hook-form';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import Tesseract from 'tesseract.js';
@@ -47,6 +47,9 @@ const PaymentTab: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [showFormAI, setShowFormAI] = useState(false);
   const [formAIPrompt, setFormAIPrompt] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { register, handleSubmit, reset, setValue } = useForm<ExpenseForm>({ defaultValues: emptyExpense });
   const expenses = useAppStore((state) => state.expenses);
@@ -136,14 +139,54 @@ const PaymentTab: React.FC = () => {
     }
   };
 
-  const uploadBill = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setIsDragActive(true);
+    } else if (e.type === "dragleave") {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setSelectedFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  const triggerFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleUploadSubmit = async () => {
+    if (!selectedFile) return;
     setIsScanning(true);
-    const result = await Tesseract.recognize(file, 'eng');
-    applyReceiptText(result.data.text);
-    setIsScanning(false);
-    showNotification('info', 'Bill OCR Scanner', 'Uploaded bill parsed and details auto-populated.');
+    try {
+      const result = await Tesseract.recognize(selectedFile, 'eng');
+      applyReceiptText(result.data.text);
+      showNotification('success', 'Bill OCR Scanner', 'Bill file processed and details auto-populated.');
+      setSelectedFile(null);
+    } catch (error) {
+      console.error(error);
+      showNotification('failure', 'OCR Error', 'Failed to read bill details.');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const cancelSelection = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const onSubmit = (data: ExpenseForm) => {
@@ -248,10 +291,11 @@ const PaymentTab: React.FC = () => {
           <div className="border-b border-slate-200 flex items-center gap-6 text-sm font-bold select-none px-2 mb-4">
             <button
               onClick={() => setType('DEBIT')}
-              className={`pb-2.5 px-1 relative transition-colors ${
-                type === 'DEBIT' ? 'text-slate-800 font-black' : 'text-slate-400 hover:text-slate-600'
+              className={`pb-2.5 px-1 relative flex items-center gap-1.5 transition-colors ${
+                type === 'DEBIT' ? 'theme-text font-black' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
+              <IonIcon icon={walletOutline} className="text-base" />
               Expenses
               {type === 'DEBIT' && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" style={{ backgroundColor: 'var(--theme-primary)' }} />
@@ -259,10 +303,11 @@ const PaymentTab: React.FC = () => {
             </button>
             <button
               onClick={() => setType('CREDIT')}
-              className={`pb-2.5 px-1 relative transition-colors ${
-                type === 'CREDIT' ? 'text-slate-800 font-black' : 'text-slate-400 hover:text-slate-600'
+              className={`pb-2.5 px-1 relative flex items-center gap-1.5 transition-colors ${
+                type === 'CREDIT' ? 'theme-text font-black' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
+              <IonIcon icon={cashOutline} className="text-base" />
               Income
               {type === 'CREDIT' && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" style={{ backgroundColor: 'var(--theme-primary)' }} />
@@ -297,14 +342,29 @@ const PaymentTab: React.FC = () => {
 
         {/* Form sliding Drawer */}
         <IonModal isOpen={isFormOpen} onDidDismiss={closeForm} className="entry-form-modal">
-          <IonHeader className="ion-no-border">
-            <IonToolbar>
-              <IonTitle>{editingExpense ? 'Edit Entry' : 'Add Entry'}</IonTitle>
-              <IonButton slot="end" fill="clear" onClick={() => setShowFormAI(!showFormAI)} title="AI Auto-Fill">
-                <IonIcon icon={sparklesOutline} slot="icon-only" className="animate-pulse text-indigo-600" style={{ color: 'var(--theme-primary)' }} />
-              </IonButton>
-              <IonButton slot="end" fill="clear" onClick={closeForm}><IonIcon icon={closeOutline} slot="icon-only" /></IonButton>
-            </IonToolbar>
+          <IonHeader className="ion-no-border border-b border-slate-200">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-white select-none">
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={closeForm}
+                  className="w-8 h-8 rounded-full border border-blue-200 flex items-center justify-center text-blue-500 hover:bg-blue-50 transition-colors cursor-pointer outline-none bg-white shrink-0"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                  </svg>
+                </button>
+                <span className="text-[15px] font-bold text-slate-800 tracking-wide">{editingExpense ? 'Edit Entry' : 'Add Entry'}</span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowFormAI(!showFormAI)} 
+                className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 hover:bg-indigo-100 transition-colors outline-none cursor-pointer"
+                title="AI Auto-Fill"
+                style={{ color: 'var(--theme-primary)', borderColor: 'color-mix(in srgb, var(--theme-primary) 20%, transparent)' }}
+              >
+                <IonIcon icon={sparklesOutline} className="text-base animate-pulse" />
+              </button>
+            </div>
             {showFormAI && (
               <div className="p-3 bg-indigo-50/70 border-b border-indigo-100 flex gap-2 items-center">
                 <input 
@@ -321,39 +381,199 @@ const PaymentTab: React.FC = () => {
             )}
           </IonHeader>
           <IonContent className="ion-padding ticket-modal-content bg-slate-50">
-            <form onSubmit={handleSubmit(onSubmit, onError)} className="entry-form modal-form-panel p-4 bg-white border border-slate-200/60 rounded-2xl shadow-sm">
+            <form onSubmit={handleSubmit(onSubmit, onError)} className="modal-form-panel p-5 bg-white space-y-4">
               {type === 'DEBIT' && (
-                <div className="bill-upload mb-4">
-                  <button type="button" onClick={scanReceipt} disabled={isScanning} className="w-full py-2.5 rounded-xl border border-slate-200/80 bg-slate-50 hover:bg-slate-100 flex items-center justify-center gap-1.5 text-slate-600 text-xs font-bold transition-colors">
-                    {isScanning ? <IonSpinner name="dots" /> : <IonIcon icon={cameraOutline} />}
-                    Scan Bill Receipt
+                <div className="mb-4 space-y-4">
+                  {/* Camera Scanner */}
+                  <button 
+                    type="button" 
+                    onClick={scanReceipt} 
+                    disabled={isScanning} 
+                    className="w-full py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center justify-center gap-1.5 text-slate-700 text-xs font-extrabold transition-all active:scale-98"
+                  >
+                    {isScanning ? <IonSpinner name="dots" /> : <IonIcon icon={cameraOutline} className="text-base" />}
+                    Scan Bill Receipt via Camera
                   </button>
-                  <label className="text-xs font-bold text-slate-500 flex flex-col gap-1.5 mt-3 select-none">
-                    <span>Or Upload Bill File</span>
-                    <input type="file" accept="image/*" onChange={uploadBill} className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 file:cursor-pointer cursor-pointer" />
-                  </label>
+
+                  {/* Drag and Drop File Upload Component */}
+                  <div className="space-y-1.5 select-none">
+                    <label className="text-xs font-bold text-slate-500 tracking-wide uppercase">File Name *</label>
+                    <div 
+                      className={`border rounded-2xl bg-white transition-all overflow-hidden ${
+                        isDragActive ? 'border-indigo-500 ring-2 ring-indigo-500/10' : 'border-slate-200'
+                      }`}
+                      onDragEnter={handleDrag}
+                      onDragOver={handleDrag}
+                      onDragLeave={handleDrag}
+                      onDrop={handleDrop}
+                    >
+                      {/* Top action buttons row */}
+                      <div className="p-3.5 bg-slate-50/50 border-b border-slate-100 flex items-center gap-2">
+                        <input 
+                          type="file" 
+                          ref={fileInputRef} 
+                          accept="image/*" 
+                          onChange={handleFileChange} 
+                          className="hidden" 
+                        />
+                        <button
+                          type="button"
+                          onClick={triggerFileSelect}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-98 border-0 outline-none"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                          </svg>
+                          Choose file to Upload
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!selectedFile || isScanning}
+                          onClick={handleUploadSubmit}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border-0 outline-none ${
+                            selectedFile && !isScanning
+                              ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm active:scale-98'
+                              : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          }`}
+                        >
+                          {isScanning ? (
+                            <IonSpinner name="dots" className="w-4 h-4" />
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                            </svg>
+                          )}
+                          Upload
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!selectedFile || isScanning}
+                          onClick={cancelSelection}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border-0 outline-none ${
+                            selectedFile && !isScanning
+                              ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 active:scale-98'
+                              : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          }`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          Cancel
+                        </button>
+                      </div>
+
+                      {/* Bottom drag-and-drop info zone */}
+                      <div className="p-5 flex items-center gap-3 bg-white">
+                        <div className="text-slate-400 text-2xl shrink-0 p-2 bg-slate-50 rounded-xl">
+                          <svg className="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 text-[11px] font-bold text-slate-500 tracking-wide leading-relaxed">
+                          {selectedFile ? (
+                            <span className="text-emerald-600 block">
+                              Selected: <strong className="font-extrabold">{selectedFile.name}</strong> ({(selectedFile.size / 1024).toFixed(1)} KB)
+                            </span>
+                          ) : (
+                            <span>
+                              Drag and drop a .PNG or .JPG or .JPEG or .WEBP file here or click
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
-              <div className="space-y-4">
-                <IonInput fill="outline" label="Category" labelPlacement="floating" {...register('category', { required: true })}>
-                  <IonButton slot="end" fill="clear" type="button" color={isListening ? 'danger' : 'primary'} onClick={() => listenForVoiceInput((text) => setValue('category', text), setIsListening)}>
-                    <IonIcon icon={micOutline} className={isListening ? 'animate-pulse' : ''} />
-                  </IonButton>
-                </IonInput>
-                <IonInput fill="outline" label="Description" labelPlacement="floating" {...register('description')} />
-                <IonInput fill="outline" label="Amount" labelPlacement="floating" type="number" step="0.01" {...register('amount', { required: true, valueAsNumber: true })} />
-                <IonInput fill="outline" label="Date" labelPlacement="floating" type="date" {...register('date', { required: true })} />
-                <IonSelect fill="outline" label="Payment Mode" labelPlacement="floating" {...register('paymentMode')}>
-                  <IonSelectOption value="Cash">Cash</IonSelectOption>
-                  <IonSelectOption value="UPI">UPI</IonSelectOption>
-                  <IonSelectOption value="Card">Card</IonSelectOption>
-                  <IonSelectOption value="Net Banking">Net Banking</IonSelectOption>
-                </IonSelect>
-                <IonInput fill="outline" label="Paid Bank" labelPlacement="floating" {...register('paidBank')} />
+              <div className="space-y-4 mt-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Category *</label>
+                  <div className="relative flex items-center">
+                    <input 
+                      type="text" 
+                      {...register('category', { required: true })} 
+                      className="w-full pl-3 pr-10 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800"
+                      placeholder="Category"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => listenForVoiceInput((text) => setValue('category', text), setIsListening)}
+                      className="absolute right-2.5 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      <IonIcon icon={micOutline} className={`text-base ${isListening ? 'text-red-500 animate-pulse' : ''}`} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Description</label>
+                  <input 
+                    type="text" 
+                    {...register('description')} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                    placeholder="Description"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Amount *</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    {...register('amount', { required: true, valueAsNumber: true })} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Date *</label>
+                  <input 
+                    type="date" 
+                    {...register('date', { required: true })} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Payment Mode</label>
+                  <select 
+                    {...register('paymentMode')} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Card">Card</option>
+                    <option value="Net Banking">Net Banking</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-bold text-slate-600">Paid Bank</label>
+                  <input 
+                    type="text" 
+                    {...register('paidBank')} 
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/10 text-slate-800 bg-white"
+                    placeholder="Paid Bank"
+                  />
+                </div>
               </div>
-              <div className="form-actions mt-6">
-                <button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
-                <IonButton type="submit"><IonIcon icon={checkmarkCircleOutline} slot="start" />Submit</IonButton>
+              <div className="form-actions mt-6 flex justify-end gap-3 pt-4 border-t border-slate-100 bg-white">
+                <button 
+                  type="button" 
+                  onClick={closeForm} 
+                  className="px-4 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border-0 outline-none"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-4 py-2 text-white text-xs font-bold rounded-lg transition-colors shadow-sm border-0 outline-none flex items-center gap-1"
+                  style={{ backgroundColor: 'var(--theme-primary)' }}
+                >
+                  <IonIcon icon={checkmarkCircleOutline} className="text-sm" />
+                  Submit
+                </button>
               </div>
             </form>
           </IonContent>
