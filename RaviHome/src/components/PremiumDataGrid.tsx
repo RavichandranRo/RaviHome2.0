@@ -142,7 +142,7 @@ function PremiumDataGrid<T extends { id: string | number }>({
   // Paginated split
   const totalEntries = filteredAndSortedData.length;
   const totalPages = Math.ceil(totalEntries / pageSize) || 1;
-  
+
   // Guard current page boundaries
   const activePage = Math.max(1, Math.min(currentPage, totalPages));
 
@@ -189,10 +189,10 @@ function PremiumDataGrid<T extends { id: string | number }>({
 
   return (
     <div className="space-y-4 text-slate-800">
-      
+
       {/* Grid Toolbar: Filters, Columns config, Export, Refresh */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm select-none">
-        
+
         {/* Search Bar Input */}
         <div className="relative w-full sm:max-w-xs">
           <IonIcon icon={funnelOutline} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
@@ -212,11 +212,10 @@ function PremiumDataGrid<T extends { id: string | number }>({
             <button
               key={String(tab.value)}
               onClick={() => setActiveStatusFilter(tab.value)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                activeStatusFilter === tab.value
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${activeStatusFilter === tab.value
                   ? 'text-white'
                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200/80'
-              }`}
+                }`}
               style={{
                 backgroundColor: activeStatusFilter === tab.value ? 'var(--theme-primary)' : undefined
               }}
@@ -234,10 +233,10 @@ function PremiumDataGrid<T extends { id: string | number }>({
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 select-none">
                 {showSelection && (
                   <th className="w-12 px-4 py-3 text-center">
-                    <input 
-                      type="checkbox" 
-                      checked={allPaginatedSelected} 
-                      onChange={toggleSelectAll} 
+                    <input
+                      type="checkbox"
+                      checked={allPaginatedSelected}
+                      onChange={toggleSelectAll}
                       className="rounded border-slate-300 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer outline-none transition-colors"
                     />
                   </th>
@@ -246,9 +245,8 @@ function PremiumDataGrid<T extends { id: string | number }>({
                   <th
                     key={col.key}
                     onClick={() => col.sortable !== false && requestSort(col.key)}
-                    className={`px-4 py-3 text-[10px] font-bold uppercase tracking-wider ${
-                      col.sortable !== false ? 'cursor-pointer hover:bg-slate-100/60' : ''
-                    }`}
+                    className={`px-4 py-3 text-[11px] font-bold tracking-wide text-slate-950 ${col.sortable !== false ? 'cursor-pointer hover:bg-slate-100/60' : ''
+                      }`}
                   >
                     <div className="flex items-center gap-1.5">
                       <span>{col.label}</span>
@@ -274,10 +272,10 @@ function PremiumDataGrid<T extends { id: string | number }>({
                   <tr key={item.id} className="hover:bg-slate-50/40 transition-colors">
                     {showSelection && (
                       <td className="w-12 px-4 py-3 text-center">
-                        <input 
-                          type="checkbox" 
-                          checked={activeSelectedIds.has(item.id)} 
-                          onChange={() => toggleSelectRow(item.id)} 
+                        <input
+                          type="checkbox"
+                          checked={activeSelectedIds.has(item.id)}
+                          onChange={() => toggleSelectRow(item.id)}
                           className="rounded border-slate-300 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer outline-none transition-colors"
                         />
                       </td>
@@ -297,7 +295,7 @@ function PremiumDataGrid<T extends { id: string | number }>({
 
       {/* Grid Footer Pagination matching bottom bar of Image 4 */}
       <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
-        
+
         {/* Actions Controls (Refresh, Column config, Export) on bottom-left */}
         <div className="flex items-center gap-2">
           {/* Column configuration dropdown selector */}
@@ -314,7 +312,7 @@ function PremiumDataGrid<T extends { id: string | number }>({
               </svg>
               <IonIcon icon={chevronDownOutline} className="text-[8px]" />
             </button>
-            
+
             {showColConfig && (
               <>
                 <div className="fixed inset-0 z-[100]" onClick={() => setShowColConfig(false)} />
@@ -394,11 +392,10 @@ function PremiumDataGrid<T extends { id: string | number }>({
                 <button
                   key={pNum}
                   onClick={() => setCurrentPage(pNum)}
-                  className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold border transition-colors ${
-                    activePage === pNum
+                  className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold border transition-colors ${activePage === pNum
                       ? 'text-white border-transparent'
                       : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600'
-                  }`}
+                    }`}
                   style={{
                     backgroundColor: activePage === pNum ? 'var(--theme-primary)' : undefined
                   }}

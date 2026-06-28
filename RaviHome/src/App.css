@@ -1,5 +1,6 @@
 :root {
-  --theme-primary: #6366f1; /* default indigo */
+  --theme-primary: #6366f1;
+  /* default indigo */
   --theme-primary-hover: #4f46e5;
   --theme-header-bg: #6366f1;
   --theme-header-text: #ffffff;
@@ -12,42 +13,49 @@
   --theme-header-bg: #6366f1;
   --theme-accent: #6366f1;
 }
+
 [data-theme-color="teal"] {
   --theme-primary: #14b8a6;
   --theme-primary-hover: #0d9488;
   --theme-header-bg: #14b8a6;
   --theme-accent: #14b8a6;
 }
+
 [data-theme-color="green"] {
   --theme-primary: #10b981;
   --theme-primary-hover: #059669;
   --theme-header-bg: #10b981;
   --theme-accent: #10b981;
 }
+
 [data-theme-color="blue"] {
   --theme-primary: #2196f3;
   --theme-primary-hover: #1e88e5;
   --theme-header-bg: #2196f3;
   --theme-accent: #2196f3;
 }
+
 [data-theme-color="orange"] {
   --theme-primary: #f57c00;
   --theme-primary-hover: #e65100;
   --theme-header-bg: #f57c00;
   --theme-accent: #f57c00;
 }
+
 [data-theme-color="purple"] {
   --theme-primary: #9c27b0;
   --theme-primary-hover: #7b1fa2;
   --theme-header-bg: #9c27b0;
   --theme-accent: #9c27b0;
 }
+
 [data-theme-color="pink"] {
   --theme-primary: #ec4899;
   --theme-primary-hover: #db2777;
   --theme-header-bg: #ec4899;
   --theme-accent: #ec4899;
 }
+
 [data-theme-color="amber"] {
   --theme-primary: #f59e0b;
   --theme-primary-hover: #d97706;
@@ -78,7 +86,8 @@ html.app-dark ion-toolbar {
 }
 
 .app-sidebar-tabs {
-  --background: #111827; /* Dark background */
+  --background: #111827;
+  /* Dark background */
   position: fixed;
   inset: 64px auto 0 0;
   z-index: 20;
@@ -90,7 +99,7 @@ html.app-dark ion-toolbar {
   border-right: 1px solid #1f2937;
   border-top: 0;
   box-shadow: 8px 0 24px rgba(15, 23, 42, 0.06);
-  padding: 24px 8px;
+  padding: 8px 8px;
   transition: width 220ms ease, box-shadow 220ms ease, background-color 220ms ease;
   overflow-y: auto;
   scrollbar-width: none;
@@ -113,8 +122,8 @@ html.app-dark ion-toolbar {
   --color-selected: var(--theme-primary);
   --background-focused: rgba(255, 255, 255, 0.05);
   border-radius: 12px;
-  height: 72px;
-  margin: 6px 0;
+  height: 52px;
+  margin: 2px 0;
   background: transparent;
   transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
 }
@@ -128,13 +137,13 @@ html.app-dark ion-toolbar {
 }
 
 .app-sidebar-tabs ion-icon {
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .app-sidebar-tabs ion-label {
   font-size: 10px;
   font-weight: 700;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 /* Header/Top Navigation Bar styling */
@@ -159,9 +168,11 @@ ion-button.theme-btn {
   --background: var(--theme-primary);
   --background-hover: var(--theme-primary-hover);
 }
+
 .theme-text {
   color: var(--theme-primary);
 }
+
 .theme-border {
   border-color: var(--theme-primary);
 }
@@ -387,6 +398,7 @@ ion-button.theme-btn {
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -441,7 +453,7 @@ ion-button.theme-btn {
   }
 
   .app-sidebar-tabs ion-tab-button {
-    height: 66px;
+    height: 50px;
   }
 
   .app-sidebar-tabs ion-label {
@@ -452,16 +464,17 @@ ion-button.theme-btn {
     grid-template-columns: 1fr;
   }
 }
+
 .data-grid-table thead.data-grid-header {
-  background: var(--theme-primary);
-  color: #ffffff;
+  background: #f8fafc;
+  color: #000000;
   border-bottom: 0;
 }
 
 .data-grid-table thead.data-grid-header th {
-  color: #ffffff;
+  color: #000000;
   letter-spacing: 0.01em;
-  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  border-right: 1px solid #e2e8f0;
 }
 
 .data-grid-table thead.data-grid-header th:last-child {
@@ -475,20 +488,19 @@ table {
 }
 
 thead {
-  background-color: var(--theme-primary) !important;
-  color: #ffffff !important;
-  border-bottom: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+  background-color: #f8fafc !important;
+  color: #000000 !important;
+  border-bottom: 1.5px solid #e2e8f0 !important;
 }
 
 th {
   padding: 14px 18px !important;
   font-weight: 700 !important;
   font-size: 11px !important;
-  text-transform: uppercase !important;
-  color: #ffffff !important;
+  color: #000000 !important;
   border: none !important;
-  border-bottom: 1.5px solid rgba(255, 255, 255, 0.15) !important;
-  letter-spacing: 0.05em;
+  border-bottom: 1.5px solid #e2e8f0 !important;
+  letter-spacing: 0.02em;
 }
 
 td {
